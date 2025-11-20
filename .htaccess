@@ -1,0 +1,22 @@
+RewriteEngine On
+RewriteBase /projet/
+
+# Redirection pour les URLs avec index.php
+RewriteCond %{THE_REQUEST} /index\.php [NC]
+RewriteRule ^(.*?)index\.php(?:/(.*))?$ /projet/$1$2 [L,R=301,NC]
+
+# Gérer les URLs propres
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.php [QSA,L]
+
+# Sécurité - empêcher l'accès direct aux fichiers sensibles
+<Files ~ "\.(env|json|config.js|md|gitignore|gitattributes|lock)$">
+    Order allow,deny
+    Deny from all
+</Files>
+
+<Files ~ "(composer\.json|composer\.lock|package\.json|package-lock\.json)">
+    Order allow,deny
+    Deny from all
+</Files>
