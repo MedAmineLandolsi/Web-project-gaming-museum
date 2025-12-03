@@ -622,6 +622,7 @@ $lastUpdate = date('d/m/Y');
             <a href="../Frontoffice/index.php" class="btn btn-success" style="width: 100%; margin-bottom: 1rem; text-align: center; display: block;">
               🌐 SITE PUBLIC
             </a>
+            
             <a href="logout.php" class="btn btn-danger" style="width: 100%; text-align: center; display: block;">
                 🚪 DÉCONNEXION
             </a>

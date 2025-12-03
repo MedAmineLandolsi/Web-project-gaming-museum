@@ -260,6 +260,32 @@ class Article {
         return $stmt;
     }
 
+    // MÉTHODES POUR LE TRI PAR CATÉGORIE AVEC PAGINATION
+    public function compterPubliesParCategorie($categorie) {
+        $query = "SELECT COUNT(*) as total FROM " . $this->table_name . " 
+                  WHERE Statut = 'published' AND Categorie = :categorie";
+        
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(':categorie', $categorie);
+        $stmt->execute();
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row['total'];
+    }
+
+    public function lirePubliesParCategorieAvecPagination($categorie, $limit, $offset) {
+        $query = "SELECT * FROM " . $this->table_name . " 
+                  WHERE Statut = 'published' AND Categorie = :categorie 
+                  ORDER BY Date_Publication DESC 
+                  LIMIT :limit OFFSET :offset";
+        
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(':categorie', $categorie);
+        $stmt->bindParam(':limit', $limit, PDO::PARAM_INT);
+        $stmt->bindParam(':offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt;
+    }
+
     // Méthode pour récupérer les articles avec leurs informations d'auteur
     public function lireAvecAuteurs($limit = null, $offset = null) {
         $query = "SELECT a.*, u.prenom, u.nom 
