@@ -1,0 +1,38 @@
+
+----
+2025-12-04T09:03:47+01:00 - Incoming query: jeux
+OpenAI http_code: 401
+OpenAI raw response: {
+  "error": {
+    "message": "Incorrect API key provided: sk-xxxxx*******xxxx. You can find your API key at https://platform.openai.com/account/api-keys.",
+    "type": "invalid_request_error",
+    "code": "invalid_api_key",
+    "param": null
+  }
+}
+OpenAI request failed or returned non-2xx. Using fallback keywords.
+Loaded communities from DB: 6
+Fuzzy thresholds - similar_text%=70, levenshtein<= 2
+Category tokens derived from keywords: ["jeux","jeu","gaming","game","gamer"]
+Category query mode=yes canonical=["jeux"]
+Results count: 1
+Matched items: ["Bernard"]
+
+----
+2025-12-04T09:06:48+01:00 - Incoming query: jeux
+OpenAI http_code: 401
+OpenAI raw response: {
+  "error": {
+    "message": "Incorrect API key provided: sk-xxxxx*******xxxx. You can find your API key at https://platform.openai.com/account/api-keys.",
+    "type": "invalid_request_error",
+    "code": "invalid_api_key",
+    "param": null
+  }
+}
+OpenAI request failed or returned non-2xx. Using fallback keywords.
+Loaded communities from DB: 6
+Fuzzy thresholds - similar_text%=70, levenshtein<= 2
+Category tokens derived from keywords: ["jeux","jeu","gaming","game","gamer"]
+Category query mode=yes canonical=["jeux"]
+Results count: 1
+Matched items: ["Bernard"]
