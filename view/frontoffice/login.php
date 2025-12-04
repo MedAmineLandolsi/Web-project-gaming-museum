@@ -730,7 +730,7 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
                 errorElement = document.createElement('span');
                 errorElement.className = 'error-message';
                 formGroup.appendChild(errorElement);
-            }git add view/frontoffice/login.php
+            }
             
             errorElement.textContent = message;
             errorElement.style.display = 'block';
