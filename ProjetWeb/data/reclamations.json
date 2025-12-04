@@ -1,0 +1,35 @@
+[
+    {
+        "nomClient": "Nedra",
+        "emailClient": "nedraouhibi3@gmail.com",
+        "typeReclamation": "service client",
+        "titre": "service client",
+        "description": "mauvaise service",
+        "date": "20\/11\/2025",
+        "heure": "11:17:06",
+        "statut": "en_attente",
+        "id": "1763633826871"
+    },
+    {
+        "nomClient": "Nour",
+        "emailClient": "nourtouhemi1@gmail.com",
+        "typeReclamation": "retard de livraison",
+        "titre": "retard de livraison",
+        "description": "service de livraison indisponible",
+        "date": "20\/11\/2025",
+        "heure": "11:18:19",
+        "statut": "en_attente",
+        "id": "1763633899275"
+    },
+    {
+        "nomClient": "Ines",
+        "emailClient": "inesmissaoui@gmail.com",
+        "typeReclamation": "probl\u00e8me de commande",
+        "titre": "probleme de commande",
+        "description": "commande incorrecte",
+        "date": "20\/11\/2025",
+        "heure": "11:29:42",
+        "statut": "en_attente",
+        "id": "1763634582356"
+    }
+]
