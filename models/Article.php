@@ -257,6 +257,7 @@ class Article {
         return $stmt;
     }
 
+    // MÉTHODES POUR LE TRI PAR CATÉGORIE AVEC PAGINATION
     public function compterPubliesParCategorie($categorie) {
         $query = "SELECT COUNT(*) as total FROM " . $this->table_name . " 
                   WHERE Statut = 'published' AND Categorie = :categorie";
@@ -282,7 +283,7 @@ class Article {
         return $stmt;
     }
 
-    // NOUVELLE VERSION : Jointure avec la table "users" (gaming_museum)
+    // Méthode pour récupérer les articles avec leurs informations d'auteur
     public function lireAvecAuteurs($limit = null, $offset = null) {
         $query = "SELECT a.*, 
                   CONCAT(u.first_name, ' ', u.last_name) as auteur_nom,

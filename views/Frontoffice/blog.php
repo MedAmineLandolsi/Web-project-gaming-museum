@@ -417,6 +417,62 @@ function generatePageUrl($page, $categorie = '') {
             box-shadow: 0 6px 20px rgba(189, 0, 255, 0.4);
         }
 
+        /* Styles pour les boutons Modifier/Supprimer dans blog.php */
+        .article-actions-blog {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .btn-modifier-blog {
+            background: linear-gradient(135deg, var(--primary-green), #00cc33);
+            color: var(--darker-bg);
+            padding: 0.875rem 1.75rem;
+            border-radius: 0;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.6rem;
+            box-shadow: 0 4px 12px rgba(0, 255, 65, 0.3);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex: 1;
+            justify-content: center;
+        }
+
+        .btn-modifier-blog:hover {
+            background: linear-gradient(135deg, #00cc33, var(--primary-green));
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 255, 65, 0.4);
+        }
+
+        .btn-supprimer-blog {
+            background: linear-gradient(135deg, var(--accent-pink), #ff1a75);
+            color: var(--text-white);
+            padding: 0.875rem 1.75rem;
+            border-radius: 0;
+            border: none;
+            font-weight: 600;
+            transition: all 0.3s;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.6rem;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(255, 0, 110, 0.3);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex: 1;
+            justify-content: center;
+        }
+
+        .btn-supprimer-blog:hover {
+            background: linear-gradient(135deg, #ff1a75, var(--accent-pink));
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 0, 110, 0.4);
+        }
+
         /* Pagination améliorée */
         .pagination {
             text-align: center;
@@ -603,7 +659,7 @@ function generatePageUrl($page, $categorie = '') {
         }
 
         /* Responsive */
-        @media (max-width: 768px) {
+@media (max-width: 768px) {
             .blog-title {
                 font-size: 1.8rem;
             }
@@ -654,6 +710,10 @@ function generatePageUrl($page, $categorie = '') {
             .category-filter {
                 padding: 0.6rem 1rem;
                 font-size: 0.5rem;
+            }
+            
+            .article-actions-blog {
+                flex-direction: column;
             }
         }
     </style>
@@ -777,9 +837,28 @@ function generatePageUrl($page, $categorie = '') {
                             <span>📅 <?php echo date('d/m/Y', strtotime($article['Date_Publication'])); ?></span>
                             <span>👤 Auteur <?php echo $article['Auteur_ID']; ?></span>
                         </div>
-                        <a href="blog-single.php?id=<?php echo $article['Article_ID']; ?>" class="read-more">
-                            LIRE LA SUITE →
-                        </a>
+                        
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <a href="blog-single.php?id=<?php echo $article['Article_ID']; ?>" class="read-more">
+                                LIRE LA SUITE →
+                            </a>
+                            
+                            <?php if (isset($_SESSION['user_id']) && $article['Auteur_ID'] == $_SESSION['user_id']): ?>
+                            <div class="article-actions-blog">
+                                <a href="modifier-article.php?id=<?php echo $article['Article_ID']; ?>" class="btn-modifier-blog">
+                                    ✏️ MODIFIER
+                                </a>
+                                <form method="POST" action="supprimer-depuis-blog.php" style="display: inline;">
+                                    <input type="hidden" name="article_id" value="<?php echo $article['Article_ID']; ?>">
+                                    <input type="hidden" name="redirect_to" value="blog.php">
+                                    <button type="submit" name="supprimer" class="btn-supprimer-blog" 
+                                            onclick="return confirm('⚠️ Êtes-vous sûr de vouloir supprimer cet article ? Il disparaîtra du blog.');">
+                                        🗑️ SUPPRIMER
+                                    </button>
+                                </form>
+                            </div>
+                            <?php endif; ?>
+                        </div>
                     </div>
                 </div>
                 <?php endforeach; ?>
