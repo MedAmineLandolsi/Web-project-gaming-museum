@@ -16,7 +16,7 @@ $articleModel = new Article($db);
 
 // Utiliser l'ID de l'utilisateur connecté
 $auteur_id = $_SESSION['user_id'];
-$nom_utilisateur = $_SESSION['user_prenom'] . ' ' . $_SESSION['user_nom'];
+$nom_utilisateur = $_SESSION['user_first_name'] . ' ' . $_SESSION['user_last_name'];
 
 // Récupérer les articles de l'auteur
 $articles = $articleModel->lireParAuteur($auteur_id)->fetchAll(PDO::FETCH_ASSOC);
@@ -549,9 +549,16 @@ function getCategoryIcon($category) {
                     <li><a href="index.php">ACCUEIL</a></li>
                     <li><a href="blog.php">ARTICLES</a></li>
                     <li><a href="about.php">À PROPOS</a></li>
-                    <li><a href="submit-article.php">✍️ ÉCRIRE UN ARTICLE</a></li>
-                    <li><a href="mes-articles.php" class="active">MES ARTICLES</a></li>
-                    <li><a href="deconnexion.php" class="logout-btn">DÉCONNEXION (<?php echo $_SESSION['user_prenom']; ?>)</a></li>
+                    <?php if (isset($_SESSION['user_id'])): ?>
+                        <li><a href="submit-article.php">✍️ ÉCRIRE UN ARTICLE</a></li>
+                        <li><a href="mes-articles.php" class="active">MES ARTICLES</a></li>
+                        <li><a href="deconnexion.php" class="logout-btn">DÉCONNEXION (<?php echo $_SESSION['user_first_name'] ?? 'Utilisateur'; ?>)</a></li>
+                    <?php else: ?>
+                        <li><a href="submit-article.php">✍️ ÉCRIRE UN ARTICLE</a></li>
+                        <li><a href="connexion.php">SE CONNECTER</a></li>
+                        <li><a href="inscription.php">S'INSCRIRE</a></li>
+                        <li><a href="../Backoffice/login.php" class="admin-btn">ESPACE ADMIN</a></li>
+                    <?php endif; ?>
                 </ul>
                 <div class="mobile-menu">
                     <span></span>
@@ -567,7 +574,7 @@ function getCategoryIcon($category) {
             <h1 class="section-title">📝 MES ARTICLES</h1>
             
             <div class="user-welcome">
-                <strong>Bienvenue <?php echo $_SESSION['user_prenom'] . ' ' . $_SESSION['user_nom']; ?> !</strong><br>
+                <strong>Bienvenue <?php echo $_SESSION['user_first_name'] . ' ' . $_SESSION['user_last_name']; ?> !</strong><br>
                 Gérez tous vos articles publiés et en attente de modération
             </div>
 
@@ -650,7 +657,12 @@ function getCategoryIcon($category) {
                         <li><a href="about.php">À propos</a></li>
                         <li><a href="submit-article.php">Écrire un article</a></li>
                         <li><a href="mes-articles.php">Mes articles</a></li>
-                        <li><a href="deconnexion.php">Déconnexion</a></li>
+                        <?php if (isset($_SESSION['user_id'])): ?>
+                            <li><a href="deconnexion.php">Déconnexion</a></li>
+                        <?php else: ?>
+                            <li><a href="connexion.php">Connexion</a></li>
+                            <li><a href="inscription.php">Inscription</a></li>
+                        <?php endif; ?>
                     </ul>
                 </div>
                 <div class="footer-section">

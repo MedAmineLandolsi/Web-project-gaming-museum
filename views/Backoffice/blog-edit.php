@@ -2,6 +2,8 @@
 session_start();
 include_once '../../config/database.php';
 include_once '../../models/Article.php';
+// Si vous avez un modèle User, l'inclure ici
+// include_once '../../models/User.php';
 
 // Vérifier l'authentification
 if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
@@ -13,6 +15,9 @@ $database = new Database();
 $db = $database->getConnection();
 $articleModel = new Article($db);
 
+// Si vous avez un modèle User pour la liste des auteurs
+// $userModel = new User($db);
+
 $currentArticle = null;
 $pageTitle = 'NOUVEL ARTICLE';
 $submitButtonText = 'CRÉER L\'ARTICLE';
@@ -20,17 +25,22 @@ $submitButtonText = 'CRÉER L\'ARTICLE';
 // Si mode édition, charger l'article
 if (isset($_GET['id'])) {
     $articleId = $_GET['id'];
-    $articleModel->Article_ID = $articleId;
-    $articleModel->lireUn();
+    // Utiliser la nouvelle méthode lireUnComplet pour avoir les infos auteur
+    $articleData = $articleModel->lireUnComplet($articleId);
     
-    if ($articleModel->Titre) {
+    if ($articleData) {
         $currentArticle = [
-            'Article_ID' => $articleModel->Article_ID,
-            'Titre' => $articleModel->Titre,
-            'Contenu' => $articleModel->Contenu,
-            'Categorie' => $articleModel->Categorie,
-            'Auteur_ID' => $articleModel->Auteur_ID,
-            'Statut' => $articleModel->Statut ?? 'pending'
+            'Article_ID' => $articleData['Article_ID'],
+            'Titre' => $articleData['Titre'],
+            'Contenu' => $articleData['Contenu'],
+            'Categorie' => $articleData['Categorie'],
+            'Auteur_ID' => $articleData['Auteur_ID'],
+            'Statut' => $articleData['Statut'] ?? 'pending',
+            'Date_Publication' => $articleData['Date_Publication'],
+            'created_at' => $articleData['created_at'],
+            'updated_at' => $articleData['updated_at'],
+            'auteur_nom' => $articleData['auteur_nom'] ?? '',
+            'auteur_username' => $articleData['auteur_username'] ?? ''
         ];
         $pageTitle = 'MODIFIER L\'ARTICLE';
         $submitButtonText = 'METTRE À JOUR';
@@ -72,6 +82,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $success_message = $_SESSION['success_message'] ?? '';
 $error_message = $_SESSION['error_message'] ?? '';
 unset($_SESSION['success_message'], $_SESSION['error_message']);
+
+// Récupérer la liste des utilisateurs pour le sélecteur d'auteur
+// Si vous avez un modèle User, vous pouvez faire :
+// $users = $userModel->lire()->fetchAll(PDO::FETCH_ASSOC);
+// Pour l'instant, on garde l'input manuel
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -348,6 +363,20 @@ unset($_SESSION['success_message'], $_SESSION['error_message']);
             display: block;
             font-family: 'Press Start 2P', cursive;
         }
+        
+        .author-info {
+            background: rgba(0, 255, 65, 0.1);
+            border: 1px solid var(--primary-green);
+            padding: 1rem;
+            margin-top: 0.5rem;
+            font-family: 'VT323', monospace;
+            font-size: 0.9rem;
+        }
+        
+        .author-info span {
+            color: var(--secondary-purple);
+            font-weight: bold;
+        }
 
         .form-actions {
             display: flex;
@@ -500,6 +529,18 @@ unset($_SESSION['success_message'], $_SESSION['error_message']);
             <form method="POST" id="articleForm">
                 <?php if ($currentArticle): ?>
                     <input type="hidden" name="article_id" value="<?php echo $currentArticle['Article_ID']; ?>">
+                    
+                    <!-- Infos supplémentaires en mode édition -->
+                    <div style="margin-bottom: 2rem; padding: 1rem; background: rgba(0, 255, 65, 0.05); border: 1px solid var(--primary-green);">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; font-family: 'VT323', monospace; font-size: 1rem;">
+                            <div><strong>ID:</strong> <?php echo $currentArticle['Article_ID']; ?></div>
+                            <div><strong>Date création:</strong> <?php echo date('d/m/Y H:i', strtotime($currentArticle['created_at'])); ?></div>
+                            <div><strong>Dernière modif:</strong> <?php echo date('d/m/Y H:i', strtotime($currentArticle['updated_at'])); ?></div>
+                            <?php if (!empty($currentArticle['auteur_nom'])): ?>
+                                <div><strong>Auteur actuel:</strong> <?php echo htmlspecialchars($currentArticle['auteur_nom']); ?></div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
                 <?php endif; ?>
 
                 <div class="form-group">
@@ -533,6 +574,15 @@ unset($_SESSION['success_message'], $_SESSION['error_message']);
                     <div class="form-help">
                         ENTREZ L'ID NUMÉRIQUE DE L'AUTEUR (1 PAR DÉFAUT POUR L'ADMIN)
                     </div>
+                    
+                    <?php if ($currentArticle && !empty($currentArticle['auteur_nom'])): ?>
+                        <div class="author-info">
+                            Auteur actuel : <span><?php echo htmlspecialchars($currentArticle['auteur_nom']); ?></span>
+                            <?php if (!empty($currentArticle['auteur_username'])): ?>
+                                (@<?php echo htmlspecialchars($currentArticle['auteur_username']); ?>)
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
                 </div>
 
                 <div class="form-group">
@@ -581,8 +631,30 @@ unset($_SESSION['success_message'], $_SESSION['error_message']);
                 return false;
             }
 
+            // Vérifier que l'ID auteur est un nombre valide
+            if (isNaN(author) || parseInt(author) <= 0) {
+                e.preventDefault();
+                alert('L\'ID DE L\'AUTEUR DOIT ÊTRE UN NOMBRE POSITIF.');
+                return false;
+            }
+
             return true;
         });
+
+        // Compteur de caractères pour le contenu
+        const contentTextarea = document.getElementById('articleContent');
+        if (contentTextarea) {
+            contentTextarea.addEventListener('input', function() {
+                const charCount = this.value.length;
+                if (charCount < 50) {
+                    this.style.borderColor = 'var(--danger-red)';
+                } else if (charCount < 200) {
+                    this.style.borderColor = 'var(--warning-orange)';
+                } else {
+                    this.style.borderColor = 'var(--primary-green)';
+                }
+            });
+        }
     </script>
 </body>
 </html>

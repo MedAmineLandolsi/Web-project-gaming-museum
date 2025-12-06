@@ -9,6 +9,19 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
+// Récupérer les informations utilisateur de la session (nouvelle structure)
+$user_first_name = $_SESSION['user_first_name'] ?? '';
+$user_last_name = $_SESSION['user_last_name'] ?? '';
+$username = $_SESSION['username'] ?? '';
+
+// Pour la rétrocompatibilité avec l'ancienne structure de session
+if (empty($user_first_name) && isset($_SESSION['user_prenom'])) {
+    $user_first_name = $_SESSION['user_prenom'];
+}
+if (empty($user_last_name) && isset($_SESSION['user_nom'])) {
+    $user_last_name = $_SESSION['user_nom'];
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $database = new Database();
     $db = $database->getConnection();
@@ -17,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $article->Titre = htmlspecialchars($_POST['title']);
     $article->Contenu = htmlspecialchars($_POST['content']);
     $article->Categorie = $_POST['category'];
-    $article->Auteur_ID = $_SESSION['user_id'];
+    $article->Auteur_ID = $_SESSION['user_id']; // ID de l'utilisateur connecté (de la table users)
     $article->Date_Publication = date('Y-m-d H:i:s');
     $article->Statut = 'pending';
     
@@ -361,6 +374,11 @@ if (isset($_SESSION['success_message'])) {
             font-size: 0.9rem;
             font-family: 'Press Start 2P', cursive;
         }
+        
+        .user-info .username {
+            color: var(--secondary-purple);
+            font-weight: bold;
+        }
 
         /* Footer */
         .footer {
@@ -484,7 +502,11 @@ if (isset($_SESSION['success_message'])) {
                     <?php if (isset($_SESSION['user_id'])): ?>
                         <li><a href="submit-article.php" class="active">✍️ ÉCRIRE UN ARTICLE</a></li>
                         <li><a href="mes-articles.php">MES ARTICLES</a></li>
-                        <li><a href="deconnexion.php" class="logout-btn">DÉCONNEXION (<?php echo $_SESSION['user_prenom']; ?>)</a></li>
+                        <?php 
+                        // Afficher le prénom de l'utilisateur (nouvelle ou ancienne structure)
+                        $display_name = !empty($user_first_name) ? $user_first_name : 'Utilisateur';
+                        ?>
+                        <li><a href="deconnexion.php" class="logout-btn">DÉCONNEXION (<?php echo htmlspecialchars($display_name); ?>)</a></li>
                     <?php else: ?>
                         <li><a href="submit-article.php" class="active">✍️ ÉCRIRE UN ARTICLE</a></li>
                         <li><a href="connexion.php">SE CONNECTER</a></li>
@@ -509,7 +531,22 @@ if (isset($_SESSION['success_message'])) {
                 </h1>
                 
                 <div class="user-info">
-                    🔐 Connecté en tant que : <strong><?php echo $_SESSION['user_prenom'] . ' ' . $_SESSION['user_nom']; ?></strong>
+                    🔐 Connecté en tant que : 
+                    <strong><?php 
+                        // Afficher le nom complet
+                        $display_name_full = '';
+                        if (!empty($user_first_name) && !empty($user_last_name)) {
+                            $display_name_full = htmlspecialchars($user_first_name . ' ' . $user_last_name);
+                        } elseif (!empty($user_first_name)) {
+                            $display_name_full = htmlspecialchars($user_first_name);
+                        } else {
+                            $display_name_full = 'Utilisateur';
+                        }
+                        echo $display_name_full;
+                    ?></strong>
+                    <?php if (!empty($username)): ?>
+                        <br><span class="username">(@<?php echo htmlspecialchars($username); ?>)</span>
+                    <?php endif; ?>
                 </div>
 
                 <p style="text-align: center; color: var(--secondary-purple); margin-bottom: 3rem; font-size: 1.125rem; font-family: 'VT323', monospace;">

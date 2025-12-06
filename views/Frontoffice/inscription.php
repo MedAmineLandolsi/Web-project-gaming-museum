@@ -6,13 +6,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $database = new Database();
     $db = $database->getConnection();
     
-    $nom = htmlspecialchars($_POST['nom']);
-    $prenom = htmlspecialchars($_POST['prenom']);
+    $first_name = htmlspecialchars($_POST['prenom']);
+    $last_name = htmlspecialchars($_POST['nom']);
     $email = htmlspecialchars($_POST['email']);
-    $mot_de_passe = password_hash($_POST['mot_de_passe'], PASSWORD_DEFAULT);
+    $password = password_hash($_POST['mot_de_passe'], PASSWORD_DEFAULT);
+    $username = strtolower(str_replace(' ', '.', $first_name . '.' . $last_name));
     
-    // Vérifier si l'email existe déjà
-    $query = "SELECT id FROM utilisateurs WHERE email = ?";
+    // Vérifier si l'email existe déjà dans la table "users"
+    $query = "SELECT id FROM users WHERE email = ?";
     $stmt = $db->prepare($query);
     $stmt->bindParam(1, $email);
     $stmt->execute();
@@ -20,19 +21,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($stmt->rowCount() > 0) {
         $error_message = "❌ Cet email est déjà utilisé.";
     } else {
-        // Créer l'utilisateur
-        $query = "INSERT INTO utilisateurs (nom, prenom, email, mot_de_passe) VALUES (?, ?, ?, ?)";
+        // Vérifier si le username existe déjà
+        $username_check_query = "SELECT id FROM users WHERE username = ?";
+        $username_stmt = $db->prepare($username_check_query);
+        $username_stmt->bindParam(1, $username);
+        $username_stmt->execute();
+        
+        // Si le username existe, ajouter un numéro
+        $counter = 1;
+        $original_username = $username;
+        while ($username_stmt->rowCount() > 0) {
+            $username = $original_username . $counter;
+            $username_stmt->bindParam(1, $username);
+            $username_stmt->execute();
+            $counter++;
+        }
+        
+        // Créer l'utilisateur dans la table "users"
+        $query = "INSERT INTO users 
+                  (username, email, password, first_name, last_name, phone_number, date_of_birth, profile_picture_url, role, status, created_at, updated_at) 
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
+        
         $stmt = $db->prepare($query);
-        $stmt->bindParam(1, $nom);
-        $stmt->bindParam(2, $prenom);
-        $stmt->bindParam(3, $email);
-        $stmt->bindParam(4, $mot_de_passe);
+        
+        // Valeurs par défaut pour les champs obligatoires
+        $phone_number = '00000000'; // Valeur par défaut
+        $date_of_birth = '2000-01-01'; // Valeur par défaut
+        $profile_picture_url = ''; // Vide par défaut
+        $role = 'user'; // Rôle par défaut
+        $status = 'active'; // Statut par défaut
+        
+        $stmt->bindParam(1, $username);
+        $stmt->bindParam(2, $email);
+        $stmt->bindParam(3, $password);
+        $stmt->bindParam(4, $first_name);
+        $stmt->bindParam(5, $last_name);
+        $stmt->bindParam(6, $phone_number);
+        $stmt->bindParam(7, $date_of_birth);
+        $stmt->bindParam(8, $profile_picture_url);
+        $stmt->bindParam(9, $role);
+        $stmt->bindParam(10, $status);
         
         if ($stmt->execute()) {
             $_SESSION['user_id'] = $db->lastInsertId();
-            $_SESSION['user_nom'] = $nom;
-            $_SESSION['user_prenom'] = $prenom;
+            $_SESSION['user_first_name'] = $first_name;
+            $_SESSION['user_last_name'] = $last_name;
             $_SESSION['user_email'] = $email;
+            $_SESSION['username'] = $username;
+            $_SESSION['user_role'] = $role;
             
             header('Location: mes-articles.php');
             exit();
@@ -302,6 +338,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             display: block;
             font-family: 'VT323', monospace;
         }
+        
+        .username-notice {
+            background: rgba(0, 255, 65, 0.1);
+            border: 1px solid var(--primary-green);
+            color: var(--primary-green);
+            padding: 0.8rem;
+            margin-bottom: 1.5rem;
+            font-size: 0.7rem;
+            font-family: 'VT323', monospace;
+            text-align: center;
+        }
+        
+        .username-display {
+            background: rgba(189, 0, 255, 0.1);
+            border: 1px solid var(--secondary-purple);
+            color: var(--secondary-purple);
+            padding: 0.8rem;
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+            font-family: 'VT323', monospace;
+            text-align: center;
+            display: none;
+        }
 
         @media (max-width: 768px) {
             .form-container {
@@ -343,7 +402,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <?php if (isset($_SESSION['user_id'])): ?>
                         <li><a href="submit-article.php">✍️ ÉCRIRE UN ARTICLE</a></li>
                         <li><a href="mes-articles.php">MES ARTICLES</a></li>
-                        <li><a href="deconnexion.php" class="logout-btn">DÉCONNEXION (<?php echo $_SESSION['user_prenom']; ?>)</a></li>
+                        <li><a href="deconnexion.php" class="logout-btn">DÉCONNEXION (<?php echo $_SESSION['user_first_name'] ?? 'Utilisateur'; ?>)</a></li>
                     <?php else: ?>
                         <li><a href="submit-article.php">✍️ ÉCRIRE UN ARTICLE</a></li>
                         <li><a href="connexion.php">SE CONNECTER</a></li>
@@ -369,6 +428,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <p style="text-align: center; color: var(--secondary-purple); margin-bottom: 3rem; font-size: 1.125rem; font-family: 'VT323', monospace;">
                     Rejoignez notre communauté gaming et partagez vos articles !
                 </p>
+                
+                <div class="username-notice">
+                    <strong>Information :</strong> Un nom d'utilisateur unique sera généré automatiquement à partir de votre prénom et nom.
+                </div>
 
                 <?php if (isset($error_message)): ?>
                     <div class="error-message">
@@ -380,29 +443,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="form-group">
                         <label class="form-label" for="nom">NOM *</label>
                         <input type="text" class="form-control" name="nom" id="nom"
-                               placeholder="Votre nom">
+                               placeholder="Votre nom" required>
                         <span class="validation-error" id="nomError"></span>
                     </div>
 
                     <div class="form-group">
                         <label class="form-label" for="prenom">PRÉNOM *</label>
                         <input type="text" class="form-control" name="prenom" id="prenom"
-                               placeholder="Votre prénom">
+                               placeholder="Votre prénom" required>
                         <span class="validation-error" id="prenomError"></span>
                     </div>
 
                     <div class="form-group">
                         <label class="form-label" for="email">EMAIL *</label>
                         <input type="email" class="form-control" name="email" id="email"
-                               placeholder="votre@email.com">
+                               placeholder="votre@email.com" required>
                         <span class="validation-error" id="emailError"></span>
                     </div>
 
                     <div class="form-group">
                         <label class="form-label" for="mot_de_passe">MOT DE PASSE *</label>
                         <input type="password" class="form-control" name="mot_de_passe" id="mot_de_passe"
-                               placeholder="Votre mot de passe">
+                               placeholder="Votre mot de passe" required>
                         <span class="validation-error" id="passwordError"></span>
+                    </div>
+                    
+                    <div id="usernamePreview" class="username-display">
+                        Votre nom d'utilisateur sera : <strong id="usernameText"></strong>
                     </div>
 
                     <button type="submit" class="submit-btn">
@@ -422,6 +489,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const mobileMenu = document.querySelector('.mobile-menu');
             const navLinks = document.querySelector('.nav-links');
             const inscriptionForm = document.getElementById('inscriptionForm');
+            const usernamePreview = document.getElementById('usernamePreview');
+            const usernameText = document.getElementById('usernameText');
+            
+            // Fonction pour générer le username
+            function generateUsername() {
+                const prenom = document.getElementById('prenom').value.trim();
+                const nom = document.getElementById('nom').value.trim();
+                
+                if (prenom && nom) {
+                    let username = (prenom + '.' + nom).toLowerCase();
+                    // Nettoyer le username
+                    username = username
+                        .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Enlever les accents
+                        .replace(/[^a-z0-9.]/g, ''); // Enlever les caractères spéciaux
+                    
+                    usernameText.textContent = username;
+                    usernamePreview.style.display = 'block';
+                } else {
+                    usernamePreview.style.display = 'none';
+                }
+            }
+            
+            // Écouter les changements sur les champs nom et prénom
+            document.getElementById('nom').addEventListener('input', generateUsername);
+            document.getElementById('prenom').addEventListener('input', generateUsername);
             
             if (mobileMenu && navLinks) {
                 mobileMenu.addEventListener('click', function() {

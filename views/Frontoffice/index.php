@@ -7,7 +7,7 @@ $database = new Database();
 $db = $database->getConnection();
 
 $articleModel = new Article($db);
-$articles = $articleModel->lireDerniers(3)->fetchAll(PDO::FETCH_ASSOC);
+$articles = $articleModel->lireAvecAuteurs(3)->fetchAll(PDO::FETCH_ASSOC);
 
 function getCategoryLabel($category) {
     $categories = [
@@ -28,6 +28,12 @@ function getCategoryIcon($category) {
     ];
     return $icons[$category] ?? '📝';
 }
+
+// Messages de session
+$success_message = $_SESSION['success_message'] ?? '';
+$error_message = $_SESSION['error_message'] ?? '';
+unset($_SESSION['success_message']);
+unset($_SESSION['error_message']);
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -70,6 +76,48 @@ function getCategoryIcon($category) {
             color: var(--text-white);
             line-height: 1.6;
             overflow-x: hidden;
+        }
+
+        /* Messages d'alerte */
+        .alert-message {
+            position: fixed;
+            top: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 2000;
+            width: 90%;
+            max-width: 600px;
+            padding: 1.5rem 2rem;
+            border-radius: 0;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.8rem;
+            text-align: center;
+            animation: slideDown 0.5s ease-out;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .alert-success {
+            background: rgba(0, 255, 65, 0.15);
+            border: 2px solid var(--primary-green);
+            color: var(--primary-green);
+        }
+
+        .alert-error {
+            background: rgba(255, 0, 110, 0.15);
+            border: 2px solid var(--accent-pink);
+            color: var(--accent-pink);
+        }
+
+        @keyframes slideDown {
+            from {
+                top: -100px;
+                opacity: 0;
+            }
+            to {
+                top: 100px;
+                opacity: 1;
+            }
         }
 
         /* Header */
@@ -633,6 +681,29 @@ function getCategoryIcon($category) {
         <div class="particle"></div>
     </div>
 
+    <!-- Messages d'alerte -->
+    <?php if ($success_message): ?>
+        <div class="alert-message alert-success">
+            <?php echo $success_message; ?>
+        </div>
+        <script>
+            setTimeout(() => {
+                document.querySelector('.alert-message').style.display = 'none';
+            }, 5000);
+        </script>
+    <?php endif; ?>
+
+    <?php if ($error_message): ?>
+        <div class="alert-message alert-error">
+            <?php echo $error_message; ?>
+        </div>
+        <script>
+            setTimeout(() => {
+                document.querySelector('.alert-message').style.display = 'none';
+            }, 5000);
+        </script>
+    <?php endif; ?>
+
     <header class="header">
         <div class="container">
             <nav class="nav">
@@ -644,7 +715,7 @@ function getCategoryIcon($category) {
                     <?php if (isset($_SESSION['user_id'])): ?>
                         <li><a href="submit-article.php">✍️ ÉCRIRE UN ARTICLE</a></li>
                         <li><a href="mes-articles.php">MES ARTICLES</a></li>
-                        <li><a href="deconnexion.php" class="logout-btn">DÉCONNEXION (<?php echo $_SESSION['user_prenom']; ?>)</a></li>
+                        <li><a href="deconnexion.php" class="logout-btn">DÉCONNEXION (<?php echo $_SESSION['user_first_name'] ?? 'Utilisateur'; ?>)</a></li>
                     <?php else: ?>
                         <li><a href="submit-article.php">✍️ ÉCRIRE UN ARTICLE</a></li>
                         <li><a href="connexion.php">SE CONNECTER</a></li>
@@ -710,7 +781,7 @@ function getCategoryIcon($category) {
                             </p>
                             <div class="article-meta">
                                 <span>📅 <?php echo date('d/m/Y', strtotime($article['Date_Publication'])); ?></span>
-                                <span>👤 Auteur <?php echo $article['Auteur_ID']; ?></span>
+                                <span>👤 <?php echo htmlspecialchars($article['auteur_nom'] ?? 'Auteur'); ?></span>
                             </div>
                         </div>
                     </div>
@@ -778,8 +849,13 @@ function getCategoryIcon($category) {
                         <li><a href="blog.php">Articles</a></li>
                         <li><a href="about.php">À propos</a></li>
                         <li><a href="submit-article.php">Écrire un article</a></li>
-                        <li><a href="mes-articles.php">Mes articles</a></li>
-                        <li><a href="deconnexion.php">Déconnexion</a></li>
+                        <?php if (isset($_SESSION['user_id'])): ?>
+                            <li><a href="mes-articles.php">Mes articles</a></li>
+                            <li><a href="deconnexion.php">Déconnexion</a></li>
+                        <?php else: ?>
+                            <li><a href="connexion.php">Connexion</a></li>
+                            <li><a href="inscription.php">Inscription</a></li>
+                        <?php endif; ?>
                     </ul>
                 </div>
                 <div class="footer-section">

@@ -8,17 +8,22 @@ $db = $database->getConnection();
 
 $articleModel = new Article($db);
 
-// Configuration de la pagination
+// Configuration de la pagination et du filtre
 $articles_par_page = 4;
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$categorie_filtre = isset($_GET['categorie']) ? $_GET['categorie'] : '';
 $offset = ($page - 1) * $articles_par_page;
 
-// Récupérer le nombre total d'articles publiés
-$total_articles = $articleModel->compterPublies();
-$total_pages = ceil($total_articles / $articles_par_page);
+// Récupérer le nombre total d'articles (avec ou sans filtre)
+if ($categorie_filtre) {
+    $total_articles = $articleModel->compterPubliesParCategorie($categorie_filtre);
+    $articles = $articleModel->lirePubliesParCategorieAvecPagination($categorie_filtre, $articles_par_page, $offset)->fetchAll(PDO::FETCH_ASSOC);
+} else {
+    $total_articles = $articleModel->compterPublies();
+    $articles = $articleModel->lirePubliesAvecPagination($articles_par_page, $offset)->fetchAll(PDO::FETCH_ASSOC);
+}
 
-// Récupérer les articles pour la page actuelle
-$articles = $articleModel->lirePubliesAvecPagination($articles_par_page, $offset)->fetchAll(PDO::FETCH_ASSOC);
+$total_pages = ceil($total_articles / $articles_par_page);
 
 function getCategoryLabel($category) {
     $categories = [
@@ -39,13 +44,21 @@ function getCategoryIcon($category) {
     ];
     return $icons[$category] ?? '📝';
 }
+
+// Fonction pour générer l'URL avec paramètres
+function generatePageUrl($page, $categorie = '') {
+    $params = [];
+    if ($page > 1) $params['page'] = $page;
+    if ($categorie) $params['categorie'] = $categorie;
+    return 'blog.php' . (count($params) ? '?' . http_build_query($params) : '');
+}
 ?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TOUS LES ARTICLES - BLOG GAMING</title>
+    <title><?php echo $categorie_filtre ? getCategoryLabel($categorie_filtre) . ' - ' : ''; ?>TOUS LES ARTICLES - BLOG GAMING</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -196,7 +209,7 @@ function getCategoryIcon($category) {
         .blog-header {
             margin-top: 120px;
             text-align: center;
-            padding: 4rem 0;
+            padding: 3rem 0 1rem;
         }
 
         .blog-title {
@@ -238,6 +251,55 @@ function getCategoryIcon($category) {
             font-size: 1.5rem;
             font-weight: 500;
             font-family: 'VT323', monospace;
+            margin-bottom: 2rem;
+        }
+
+        /* Filtres par catégorie */
+        .category-filters {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 3rem;
+            padding: 1rem;
+        }
+
+        .category-filter {
+            background: var(--card-bg);
+            color: var(--text-white);
+            padding: 0.8rem 1.5rem;
+            border-radius: 0;
+            border: 2px solid var(--border-color);
+            text-decoration: none;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.6rem;
+            transition: all 0.3s;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .category-filter:hover {
+            border-color: var(--primary-green);
+            background: rgba(0, 255, 65, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .category-filter.active {
+            background: linear-gradient(135deg, var(--primary-green), #00cc33);
+            color: var(--darker-bg);
+            border-color: var(--primary-green);
+            box-shadow: 0 4px 12px rgba(0, 255, 65, 0.3);
+        }
+
+        .filter-all {
+            background: linear-gradient(135deg, var(--secondary-purple), var(--accent-pink));
+            color: var(--text-white);
+        }
+
+        .filter-all.active {
+            background: linear-gradient(135deg, var(--accent-pink), var(--secondary-purple));
         }
 
         /* Articles Grid */
@@ -444,6 +506,14 @@ function getCategoryIcon($category) {
             font-size: 1.1rem;
         }
 
+        .filter-info {
+            color: var(--primary-green);
+            font-family: 'VT323', monospace;
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
         .no-articles {
             text-align: center;
             padding: 6rem 2rem;
@@ -565,7 +635,7 @@ function getCategoryIcon($category) {
             
             .blog-header {
                 margin-top: 100px;
-                padding: 3rem 0;
+                padding: 3rem 0 1rem;
             }
             
             .pagination-container {
@@ -575,6 +645,15 @@ function getCategoryIcon($category) {
             
             .page-numbers {
                 order: -1;
+            }
+            
+            .category-filters {
+                gap: 0.5rem;
+            }
+            
+            .category-filter {
+                padding: 0.6rem 1rem;
+                font-size: 0.5rem;
             }
         }
     </style>
@@ -619,8 +698,52 @@ function getCategoryIcon($category) {
 
     <section class="blog-header">
         <div class="container">
-            <h1 class="blog-title">TOUS LES ARTICLES</h1>
+            <h1 class="blog-title">
+                <?php 
+                if ($categorie_filtre) {
+                    echo getCategoryLabel($categorie_filtre) . ' - ARTICLES';
+                } else {
+                    echo 'TOUS LES ARTICLES';
+                }
+                ?>
+            </h1>
             <p class="blog-subtitle">Découvrez tous nos articles sur l'univers du gaming</p>
+            
+            <!-- Filtres par catégorie -->
+            <div class="category-filters">
+                <a href="<?php echo generatePageUrl(1); ?>" 
+                   class="category-filter filter-all <?php echo !$categorie_filtre ? 'active' : ''; ?>">
+                    🎮 TOUTES LES CATÉGORIES
+                </a>
+                
+                <a href="<?php echo generatePageUrl(1, 'review'); ?>" 
+                   class="category-filter <?php echo $categorie_filtre == 'review' ? 'active' : ''; ?>">
+                    🎮 TEST & REVIEW
+                </a>
+                
+                <a href="<?php echo generatePageUrl(1, 'news'); ?>" 
+                   class="category-filter <?php echo $categorie_filtre == 'news' ? 'active' : ''; ?>">
+                    📰 ACTUALITÉ
+                </a>
+                
+                <a href="<?php echo generatePageUrl(1, 'tutorial'); ?>" 
+                   class="category-filter <?php echo $categorie_filtre == 'tutorial' ? 'active' : ''; ?>">
+                    📚 TUTORIEL
+                </a>
+                
+                <a href="<?php echo generatePageUrl(1, 'trends'); ?>" 
+                   class="category-filter <?php echo $categorie_filtre == 'trends' ? 'active' : ''; ?>">
+                    📈 TENDANCES
+                </a>
+            </div>
+            
+            <?php if ($categorie_filtre): ?>
+            <div class="filter-info">
+                Filtre actif : <strong><?php echo getCategoryLabel($categorie_filtre); ?></strong> 
+                (<?php echo $total_articles; ?> article<?php echo $total_articles > 1 ? 's' : ''; ?>)
+                <a href="<?php echo generatePageUrl(1); ?>" style="color: var(--accent-pink); margin-left: 1rem;">✕ Supprimer le filtre</a>
+            </div>
+            <?php endif; ?>
         </div>
     </section>
 
@@ -663,7 +786,13 @@ function getCategoryIcon($category) {
             <?php else: ?>
                 <div class="no-articles">
                     <h3>🎮 AUCUN ARTICLE PUBLIÉ</h3>
-                    <p>Il n'y a pas encore d'articles publiés sur le blog.</p>
+                    <p>
+                        <?php if ($categorie_filtre): ?>
+                            Aucun article dans la catégorie "<?php echo getCategoryLabel($categorie_filtre); ?>" pour le moment.
+                        <?php else: ?>
+                            Il n'y a pas encore d'articles publiés sur le blog.
+                        <?php endif; ?>
+                    </p>
                     <p style="margin-top: 1.5rem;">
                         <strong>Soyez le premier à <a href="submit-article.php" style="color: var(--primary-green); font-weight: 600;">proposer un article</a> !</strong>
                     </p>
@@ -677,7 +806,7 @@ function getCategoryIcon($category) {
             <div class="pagination-container">
                 <!-- Bouton Page Précédente -->
                 <?php if ($page > 1): ?>
-                    <a href="blog.php?page=<?php echo $page - 1; ?>" class="pagination-btn">
+                    <a href="<?php echo generatePageUrl($page - 1, $categorie_filtre); ?>" class="pagination-btn">
                         ◀️ PAGE PRÉCÉDENTE
                     </a>
                 <?php else: ?>
@@ -695,7 +824,7 @@ function getCategoryIcon($category) {
                     
                     for ($i = $start_page; $i <= $end_page; $i++):
                     ?>
-                        <a href="blog.php?page=<?php echo $i; ?>" 
+                        <a href="<?php echo generatePageUrl($i, $categorie_filtre); ?>" 
                            class="page-number <?php echo $i == $page ? 'active' : ''; ?>">
                             <?php echo $i; ?>
                         </a>
@@ -704,7 +833,7 @@ function getCategoryIcon($category) {
 
                 <!-- Bouton Page Suivante -->
                 <?php if ($page < $total_pages): ?>
-                    <a href="blog.php?page=<?php echo $page + 1; ?>" class="pagination-btn">
+                    <a href="<?php echo generatePageUrl($page + 1, $categorie_filtre); ?>" class="pagination-btn">
                         PAGE SUIVANTE ▶️
                     </a>
                 <?php else: ?>
@@ -717,6 +846,9 @@ function getCategoryIcon($category) {
             <div class="page-info">
                 Page <?php echo $page; ?> sur <?php echo $total_pages; ?> 
                 - <?php echo $total_articles; ?> article<?php echo $total_articles > 1 ? 's' : ''; ?> au total
+                <?php if ($categorie_filtre): ?>
+                    dans la catégorie "<?php echo getCategoryLabel($categorie_filtre); ?>"
+                <?php endif; ?>
                 
                 <?php if ($page == $total_pages): ?>
                     <br><span style="color: var(--primary-green);">✅ Vous avez vu tous les articles !</span>

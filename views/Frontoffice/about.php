@@ -409,6 +409,336 @@ $recentArticles = $articleModel->lireDerniers(10)->fetchAll(PDO::FETCH_ASSOC);
             font-family: 'VT323', monospace;
         }
 
+        /* FAQ Section */
+        .faq-section {
+            margin: 6rem 0;
+        }
+
+        .faq-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .faq-item {
+            background: var(--card-bg);
+            margin-bottom: 1.5rem;
+            border: 2px solid var(--border-color);
+            border-radius: 0;
+            overflow: hidden;
+            transition: all 0.3s;
+        }
+
+        .faq-item:hover {
+            border-color: var(--primary-green);
+        }
+
+        .faq-question {
+            padding: 1.5rem 2rem;
+            background: linear-gradient(135deg, rgba(0, 255, 65, 0.1), rgba(189, 0, 255, 0.05));
+            color: var(--primary-green);
+            font-size: 0.9rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s;
+            font-family: 'Press Start 2P', cursive;
+        }
+
+        .faq-question:hover {
+            background: linear-gradient(135deg, rgba(0, 255, 65, 0.2), rgba(189, 0, 255, 0.1));
+        }
+
+        .faq-question.active {
+            background: linear-gradient(135deg, var(--primary-green), var(--secondary-purple));
+            color: var(--darker-bg);
+        }
+
+        .faq-answer {
+            padding: 0 2rem;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out, padding 0.3s ease-out;
+            color: var(--text-gray);
+            font-family: 'VT323', monospace;
+            font-size: 1.1rem;
+            line-height: 1.6;
+        }
+
+        .faq-answer.show {
+            padding: 2rem;
+            max-height: 500px;
+        }
+
+        .faq-toggle {
+            color: var(--primary-green);
+            font-size: 1.5rem;
+            transition: transform 0.3s;
+        }
+
+        .faq-question.active .faq-toggle {
+            color: var(--darker-bg);
+            transform: rotate(45deg);
+        }
+
+        .contact-info {
+            text-align: center;
+            margin-top: 3rem;
+            padding: 2rem;
+            background: linear-gradient(135deg, rgba(0, 255, 65, 0.05), rgba(255, 0, 110, 0.05));
+            border: 2px solid var(--primary-green);
+            border-radius: 0;
+        }
+
+        .contact-info h3 {
+            color: var(--primary-green);
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+        }
+
+        .contact-info p {
+            color: var(--text-white);
+            font-family: 'VT323', monospace;
+            font-size: 1.2rem;
+        }
+
+        .phone-number {
+            color: var(--accent-pink) !important;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(255, 0, 110, 0.5);
+        }
+
+        /* Chatbot Widget */
+        .chatbot-widget {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            z-index: 9999;
+        }
+
+        .chatbot-toggle {
+            width: 70px;
+            height: 70px;
+            background: linear-gradient(135deg, var(--primary-green), var(--secondary-purple));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 8px 25px rgba(0, 255, 65, 0.4);
+            border: 2px solid var(--primary-green);
+            transition: all 0.3s;
+            font-size: 2.5rem;
+            color: var(--darker-bg);
+            position: relative;
+        }
+
+        .chatbot-toggle:hover {
+            transform: scale(1.1);
+            box-shadow: 0 12px 35px rgba(0, 255, 65, 0.6);
+        }
+
+        .chatbot-toggle.active {
+            background: linear-gradient(135deg, var(--accent-pink), var(--secondary-purple));
+            transform: rotate(90deg);
+        }
+
+        .chatbot-toggle::after {
+            content: '';
+            position: absolute;
+            top: -5px;
+            left: -5px;
+            right: -5px;
+            bottom: -5px;
+            border-radius: 50%;
+            border: 2px solid var(--primary-green);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(0.95);
+                opacity: 0.7;
+            }
+            70% {
+                transform: scale(1.1);
+                opacity: 0;
+            }
+            100% {
+                transform: scale(0.95);
+                opacity: 0;
+            }
+        }
+
+        .chatbot-container {
+            position: absolute;
+            bottom: 90px;
+            right: 0;
+            width: 350px;
+            background: var(--darker-bg);
+            border-radius: 15px;
+            border: 2px solid var(--primary-green);
+            box-shadow: 0 10px 40px rgba(0, 255, 65, 0.3);
+            overflow: hidden;
+            display: none;
+            flex-direction: column;
+            backdrop-filter: blur(20px);
+        }
+
+        .chatbot-container.active {
+            display: flex;
+            animation: slideUp 0.3s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .chatbot-header {
+            background: linear-gradient(135deg, var(--primary-green), var(--secondary-purple));
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--darker-bg);
+            font-weight: bold;
+            font-size: 0.8rem;
+        }
+
+        .chatbot-header span {
+            font-size: 1.5rem;
+        }
+
+        .chatbot-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            max-height: 400px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .message {
+            padding: 12px 16px;
+            border-radius: 15px;
+            max-width: 85%;
+            font-size: 0.8rem;
+            line-height: 1.4;
+            font-family: 'VT323', monospace;
+            word-wrap: break-word;
+        }
+
+        .bot-message {
+            background: linear-gradient(135deg, rgba(0, 255, 65, 0.1), rgba(189, 0, 255, 0.05));
+            color: var(--text-white);
+            border: 1px solid var(--primary-green);
+            align-self: flex-start;
+            border-bottom-left-radius: 5px;
+        }
+
+        .user-message {
+            background: linear-gradient(135deg, var(--secondary-purple), var(--accent-pink));
+            color: var(--text-white);
+            align-self: flex-end;
+            border-bottom-right-radius: 5px;
+        }
+
+        .chatbot-options {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 20px;
+            background: rgba(26, 26, 26, 0.8);
+        }
+
+        .chatbot-option {
+            background: var(--card-bg);
+            border: 2px solid var(--border-color);
+            color: var(--text-white);
+            padding: 12px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 0.7rem;
+            text-align: left;
+            font-family: 'Press Start 2P', cursive;
+        }
+
+        .chatbot-option:hover {
+            background: rgba(0, 255, 65, 0.1);
+            border-color: var(--primary-green);
+            transform: translateX(5px);
+        }
+
+        .chatbot-input {
+            padding: 15px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            gap: 10px;
+        }
+
+        .chatbot-input input {
+            flex: 1;
+            background: var(--card-bg);
+            border: 2px solid var(--border-color);
+            color: var(--text-white);
+            padding: 10px 15px;
+            font-family: 'VT323', monospace;
+            font-size: 1rem;
+            border-radius: 5px;
+        }
+
+        .chatbot-input input:focus {
+            outline: none;
+            border-color: var(--primary-green);
+        }
+
+        .chatbot-input button {
+            background: linear-gradient(135deg, var(--primary-green), #00cc33);
+            border: none;
+            color: var(--darker-bg);
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.6rem;
+            transition: all 0.3s;
+        }
+
+        .chatbot-input button:hover {
+            transform: scale(1.05);
+        }
+
+        .close-chatbot {
+            margin-left: auto;
+            background: none;
+            border: none;
+            color: var(--darker-bg);
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.3s;
+        }
+
+        .close-chatbot:hover {
+            background: rgba(0, 0, 0, 0.1);
+        }
+
         /* Buttons */
         .btn {
             display: inline-block;
@@ -545,6 +875,30 @@ $recentArticles = $articleModel->lireDerniers(10)->fetchAll(PDO::FETCH_ASSOC);
             
             .community-cta h2 {
                 font-size: 1.5rem;
+            }
+            
+            .faq-question {
+                font-size: 0.7rem;
+                padding: 1rem 1.5rem;
+            }
+            
+            .faq-answer.show {
+                padding: 1.5rem;
+            }
+            
+            .chatbot-container {
+                width: 300px;
+                right: -10px;
+            }
+            
+            .chatbot-toggle {
+                width: 60px;
+                height: 60px;
+                font-size: 2rem;
+            }
+            
+            .chatbot-messages {
+                max-height: 300px;
             }
         }
     </style>
@@ -711,6 +1065,58 @@ $recentArticles = $articleModel->lireDerniers(10)->fetchAll(PDO::FETCH_ASSOC);
                         </p>
                     </div>
                 </div>
+
+                <!-- NOUVELLE SECTION FAQ -->
+                <div class="faq-section">
+                    <h2 style="text-align: center; margin-bottom: 1rem; color: var(--primary-green); font-size: 2rem; font-weight: 800;">
+                        QUESTIONS FRÉQUENTES
+                    </h2>
+                    <p style="text-align: center; color: var(--secondary-purple); margin-bottom: 3rem; font-size: 1.25rem; font-family: 'VT323', monospace;">
+                        Les réponses à vos questions les plus courantes
+                    </p>
+
+                    <div class="faq-container">
+                        <div class="faq-item">
+                            <div class="faq-question">
+                                <span>🤝 JE VEUX FAIRE PARTIE DE VOTRE ÉQUIPE - COMMENT PROCÉDER ?</span>
+                                <span class="faq-toggle">+</span>
+                            </div>
+                            <div class="faq-answer">
+                                <p>Absolument ! Nous sommes toujours à la recherche de passionnés pour rejoindre notre équipe. Vous pouvez nous contacter directement par téléphone au <span class="phone-number">+216 21 121 732</span> pour discuter des opportunités de collaboration.</p>
+                                <p style="margin-top: 1rem; color: var(--primary-green);">💼 <strong>Postes disponibles :</strong> Rédacteur gaming, Designer, Développeur Web, Community Manager</p>
+                            </div>
+                        </div>
+
+                        <div class="faq-item">
+                            <div class="faq-question">
+                                <span>📝 COMMENT PROPOSER UN ARTICLE SUR VOTRE SITE ?</span>
+                                <span class="faq-toggle">+</span>
+                            </div>
+                            <div class="faq-answer">
+                                <p>C'est très simple ! Cliquez sur le bouton "✍️ ÉCRIRE UN ARTICLE" dans le menu de navigation. Vous serez redirigé vers un formulaire où vous pourrez soumettre votre article. Nos modérateurs examineront votre soumission et vous contacteront dans les 48 heures.</p>
+                                <p style="margin-top: 1rem; color: var(--primary-green);">⚠️ <strong>Important :</strong> Les articles doivent être originaux et respecter nos guidelines de contenu.</p>
+                            </div>
+                        </div>
+
+                        <div class="faq-item">
+                            <div class="faq-question">
+                                <span>🎮 PUIS-JE PARTAGER MA PASSION DU GAMING MÊME SI JE SUIS DÉBUTANT ?</span>
+                                <span class="faq-toggle">+</span>
+                            </div>
+                            <div class="faq-answer">
+                                <p>Bien sûr ! Notre communauté accueille tous les niveaux, des débutants aux experts. Chaque perspective est précieuse. N'hésitez pas à partager vos découvertes, vos premières impressions ou vos questions. La diversité des points de vue enrichit notre communauté.</p>
+                                <p style="margin-top: 1rem; color: var(--primary-green);">🌟 <strong>Notre devise :</strong> "Chaque joueur a une histoire à raconter !"</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="contact-info">
+                        <h3>📞 BESOIN DE PLUS D'INFORMATIONS ?</h3>
+                        <p>Appelez-nous directement : <span class="phone-number">+216 21 121 732</span></p>
+                        <p style="margin-top: 1rem; font-size: 1rem;">📧 Ou envoyez-nous un email : <strong style="color: var(--primary-green);">LV@blog-gaming.fr</strong></p>
+                    </div>
+                </div>
+                <!-- FIN DE LA SECTION FAQ -->
             </div>
         </div>
     </section>
@@ -744,6 +1150,35 @@ $recentArticles = $articleModel->lireDerniers(10)->fetchAll(PDO::FETCH_ASSOC);
         </div>
     </footer>
 
+    <!-- Chatbot Widget -->
+    <div class="chatbot-widget">
+        <div class="chatbot-toggle">🤖</div>
+        <div class="chatbot-container">
+            <div class="chatbot-header">
+                <span>🤖</span>
+                Assistant LV Gaming
+                <button class="close-chatbot">&times;</button>
+            </div>
+            <div class="chatbot-messages">
+                <div class="message bot-message">
+                    Salut ! Je suis l'assistant du Blog Gaming LV. 👋<br>
+                    Choisis une question ci-dessous pour obtenir une réponse rapide !
+                </div>
+            </div>
+            <div class="chatbot-options">
+                <button class="chatbot-option" data-question="1">
+                    🤝 Je veux faire partie de votre équipe
+                </button>
+                <button class="chatbot-option" data-question="2">
+                    📝 Comment proposer un article ?
+                </button>
+                <button class="chatbot-option" data-question="3">
+                    🎮 Je suis débutant, puis-je participer ?
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const mobileMenu = document.querySelector('.mobile-menu');
@@ -771,6 +1206,112 @@ $recentArticles = $articleModel->lireDerniers(10)->fetchAll(PDO::FETCH_ASSOC);
                     link.classList.add('active');
                 } else {
                     link.classList.remove('active');
+                }
+            });
+
+            // FAQ Toggle Functionality
+            const faqQuestions = document.querySelectorAll('.faq-question');
+            
+            faqQuestions.forEach(question => {
+                question.addEventListener('click', function() {
+                    const answer = this.nextElementSibling;
+                    const isActive = this.classList.contains('active');
+                    
+                    // Close all other items
+                    faqQuestions.forEach(q => {
+                        if (q !== this) {
+                            q.classList.remove('active');
+                            q.nextElementSibling.classList.remove('show');
+                        }
+                    });
+                    
+                    // Toggle current item
+                    this.classList.toggle('active');
+                    
+                    if (!isActive) {
+                        answer.classList.add('show');
+                    } else {
+                        answer.classList.remove('show');
+                    }
+                });
+            });
+
+            // Open first FAQ item by default
+            if (faqQuestions.length > 0) {
+                faqQuestions[0].classList.add('active');
+                faqQuestions[0].nextElementSibling.classList.add('show');
+            }
+
+            // Chatbot Functionality
+            const chatbotToggle = document.querySelector('.chatbot-toggle');
+            const chatbotContainer = document.querySelector('.chatbot-container');
+            const closeChatbot = document.querySelector('.close-chatbot');
+            const chatbotOptions = document.querySelectorAll('.chatbot-option');
+            const chatbotMessages = document.querySelector('.chatbot-messages');
+
+            // Réponses du chatbot
+            const chatbotResponses = {
+                1: {
+                    question: "🤝 Je veux faire partie de votre équipe",
+                    answer: "🎮 <strong>Super !</strong> Nous sommes toujours ravis d'accueillir de nouveaux passionnés dans notre équipe.<br><br>📞 <strong>Contactez-nous directement :</strong> Appelez le <span style='color: #FF006E; font-weight: bold;'>+216 21 121 732</span><br><br>💼 <strong>Nous recherchons :</strong> Rédacteurs gaming, développeurs web, designers, community managers.<br><br>🚀 <strong>Notre équipe attend votre appel !</strong>"
+                },
+                2: {
+                    question: "📝 Comment proposer un article ?",
+                    answer: "✍️ <strong>C'est très simple !</strong> Voici la procédure :<br><br>1. Clique sur '✍️ ÉCRIRE UN ARTICLE' dans le menu<br>2. Remplis le formulaire avec ton contenu<br>3. Nos modérateurs examineront ta soumission<br>4. Tu recevras une réponse sous 48h<br><br>📋 <strong>Important :</strong> Les articles doivent être originaux et respecter nos guidelines."
+                },
+                3: {
+                    question: "🎮 Je suis débutant, puis-je participer ?",
+                    answer: "🌟 <strong>Absolument !</strong> Notre communauté accueille <strong>TOUS</strong> les niveaux !<br><br>🎯 <strong>Pourquoi participer :</strong><br>• Partage tes premières impressions<br>• Pose tes questions<br>• Découvre de nouveaux jeux<br>• Apprends avec la communauté<br><br>💚 <strong>Notre devise :</strong> 'Chaque joueur a une histoire à raconter !'<br><br>🚀 <strong>N'hésite pas à nous rejoindre !</strong>"
+                }
+            };
+
+            // Ouvrir/fermer le chatbot
+            chatbotToggle.addEventListener('click', function() {
+                chatbotContainer.classList.toggle('active');
+                chatbotToggle.classList.toggle('active');
+            });
+
+            closeChatbot.addEventListener('click', function() {
+                chatbotContainer.classList.remove('active');
+                chatbotToggle.classList.remove('active');
+            });
+
+            // Gérer les clics sur les options
+            chatbotOptions.forEach(option => {
+                option.addEventListener('click', function() {
+                    const questionId = this.getAttribute('data-question');
+                    const response = chatbotResponses[questionId];
+                    
+                    // Ajouter le message de l'utilisateur
+                    const userMessage = document.createElement('div');
+                    userMessage.className = 'message user-message';
+                    userMessage.innerHTML = response.question;
+                    chatbotMessages.appendChild(userMessage);
+                    
+                    // Ajouter la réponse du bot après un court délai
+                    setTimeout(() => {
+                        const botMessage = document.createElement('div');
+                        botMessage.className = 'message bot-message';
+                        botMessage.innerHTML = response.answer;
+                        chatbotMessages.appendChild(botMessage);
+                        
+                        // Faire défiler vers le bas
+                        chatbotMessages.scrollTop = chatbotMessages.scrollHeight;
+                    }, 500);
+                    
+                    // Faire défiler vers le bas
+                    chatbotMessages.scrollTop = chatbotMessages.scrollHeight;
+                });
+            });
+
+            // Fermer le chatbot en cliquant en dehors
+            document.addEventListener('click', function(event) {
+                const isChatbot = chatbotContainer.contains(event.target) || chatbotToggle.contains(event.target);
+                const isChatbotActive = chatbotContainer.classList.contains('active');
+                
+                if (!isChatbot && isChatbotActive && event.target !== chatbotToggle) {
+                    chatbotContainer.classList.remove('active');
+                    chatbotToggle.classList.remove('active');
                 }
             });
         });

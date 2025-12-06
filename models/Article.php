@@ -10,6 +10,8 @@ class Article {
     public $Categorie;
     public $Date_Publication;
     public $Statut;
+    public $created_at;
+    public $updated_at;
 
     public function __construct($db) {
         $this->conn = $db;
@@ -58,12 +60,13 @@ class Article {
             $this->Date_Publication = $row['Date_Publication'];
             $this->Auteur_ID = $row['Auteur_ID'];
             $this->Statut = $row['Statut'] ?? 'pending';
+            $this->created_at = $row['created_at'] ?? null;
+            $this->updated_at = $row['updated_at'] ?? null;
             return true;
         }
         return false;
     }
 
-    // Lire les articles par auteur
     public function lireParAuteur($auteur_id) {
         $query = "SELECT * FROM " . $this->table_name . " 
                   WHERE Auteur_ID = ? 
@@ -77,7 +80,8 @@ class Article {
     public function creer() {
         $query = "INSERT INTO " . $this->table_name . " 
                  SET Titre=:Titre, Contenu=:Contenu, Categorie=:Categorie, 
-                     Auteur_ID=:Auteur_ID, Date_Publication=:Date_Publication, Statut=:Statut";
+                     Auteur_ID=:Auteur_ID, Date_Publication=:Date_Publication, 
+                     Statut=:Statut, created_at=NOW(), updated_at=NOW()";
         
         $stmt = $this->conn->prepare($query);
         
@@ -95,6 +99,7 @@ class Article {
         $stmt->bindParam(":Statut", $this->Statut);
         
         if($stmt->execute()) {
+            $this->Article_ID = $this->conn->lastInsertId();
             return true;
         }
         return false;
@@ -103,7 +108,7 @@ class Article {
     public function mettreAJour() {
         $query = "UPDATE " . $this->table_name . " 
                  SET Titre=:Titre, Contenu=:Contenu, Categorie=:Categorie, 
-                     Auteur_ID=:Auteur_ID, Statut=:Statut
+                     Auteur_ID=:Auteur_ID, Statut=:Statut, updated_at=NOW()
                  WHERE Article_ID=:Article_ID";
         
         $stmt = $this->conn->prepare($query);
@@ -128,10 +133,9 @@ class Article {
         return false;
     }
 
-    // Modifier un article (version simplifiée)
     public function modifier() {
         $query = "UPDATE " . $this->table_name . " 
-                 SET Titre=:Titre, Contenu=:Contenu, Categorie=:Categorie
+                 SET Titre=:Titre, Contenu=:Contenu, Categorie=:Categorie, updated_at=NOW()
                  WHERE Article_ID=:Article_ID AND Auteur_ID=:Auteur_ID";
         
         $stmt = $this->conn->prepare($query);
@@ -158,13 +162,11 @@ class Article {
         try {
             $this->conn->beginTransaction();
             
-            // Supprimer d'abord les commentaires associés
             $query_delete_comments = "DELETE FROM commentaires WHERE Article_ID = ?";
             $stmt_comments = $this->conn->prepare($query_delete_comments);
             $stmt_comments->bindParam(1, $this->Article_ID);
             $stmt_comments->execute();
             
-            // Ensuite supprimer l'article
             $query = "DELETE FROM " . $this->table_name . " WHERE Article_ID = ?";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(1, $this->Article_ID);
@@ -186,18 +188,15 @@ class Article {
         }
     }
 
-    // Supprimer un article par auteur (pour la sécurité)
     public function supprimerParAuteur($article_id, $auteur_id) {
         try {
             $this->conn->beginTransaction();
             
-            // Supprimer d'abord les commentaires associés
             $query_delete_comments = "DELETE FROM commentaires WHERE Article_ID = ?";
             $stmt_comments = $this->conn->prepare($query_delete_comments);
             $stmt_comments->bindParam(1, $article_id);
             $stmt_comments->execute();
             
-            // Ensuite supprimer l'article seulement s'il appartient à l'auteur
             $query = "DELETE FROM " . $this->table_name . " WHERE Article_ID = ? AND Auteur_ID = ?";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(1, $article_id);
@@ -228,7 +227,6 @@ class Article {
         return $row['total'];
     }
 
-    // Compter les articles par auteur
     public function compterArticlesParAuteur($auteur_id) {
         $query = "SELECT COUNT(*) as total FROM " . $this->table_name . " WHERE Auteur_ID = ?";
         $stmt = $this->conn->prepare($query);
@@ -238,7 +236,6 @@ class Article {
         return $row['total'];
     }
 
-    // NOUVELLES MÉTHODES POUR LA PAGINATION
     public function compterPublies() {
         $query = "SELECT COUNT(*) as total FROM " . $this->table_name . " WHERE Statut = 'published'";
         $stmt = $this->conn->prepare($query);
@@ -260,11 +257,38 @@ class Article {
         return $stmt;
     }
 
-    // Méthode pour récupérer les articles avec leurs informations d'auteur
+    public function compterPubliesParCategorie($categorie) {
+        $query = "SELECT COUNT(*) as total FROM " . $this->table_name . " 
+                  WHERE Statut = 'published' AND Categorie = :categorie";
+        
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(':categorie', $categorie);
+        $stmt->execute();
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row['total'];
+    }
+
+    public function lirePubliesParCategorieAvecPagination($categorie, $limit, $offset) {
+        $query = "SELECT * FROM " . $this->table_name . " 
+                  WHERE Statut = 'published' AND Categorie = :categorie 
+                  ORDER BY Date_Publication DESC 
+                  LIMIT :limit OFFSET :offset";
+        
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(':categorie', $categorie);
+        $stmt->bindParam(':limit', $limit, PDO::PARAM_INT);
+        $stmt->bindParam(':offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt;
+    }
+
+    // NOUVELLE VERSION : Jointure avec la table "users" (gaming_museum)
     public function lireAvecAuteurs($limit = null, $offset = null) {
-        $query = "SELECT a.*, u.prenom, u.nom 
+        $query = "SELECT a.*, 
+                  CONCAT(u.first_name, ' ', u.last_name) as auteur_nom,
+                  u.username as auteur_username
                   FROM " . $this->table_name . " a 
-                  LEFT JOIN utilisateurs u ON a.Auteur_ID = u.id 
+                  LEFT JOIN users u ON a.Auteur_ID = u.id 
                   WHERE a.Statut = 'published' 
                   ORDER BY a.Date_Publication DESC";
         
@@ -288,7 +312,6 @@ class Article {
         return $stmt;
     }
 
-    // Méthode pour rechercher des articles
     public function rechercher($search_term, $limit = null, $offset = null) {
         $query = "SELECT * FROM " . $this->table_name . " 
                   WHERE Statut = 'published' 
@@ -317,7 +340,6 @@ class Article {
         return $stmt;
     }
 
-    // Compter les résultats de recherche
     public function compterRecherche($search_term) {
         $query = "SELECT COUNT(*) as total FROM " . $this->table_name . " 
                   WHERE Statut = 'published' 
@@ -331,7 +353,6 @@ class Article {
         return $row['total'];
     }
 
-    // Récupérer les articles par catégorie avec pagination
     public function lireParCategorie($categorie, $limit = null, $offset = null) {
         $query = "SELECT * FROM " . $this->table_name . " 
                   WHERE Statut = 'published' AND Categorie = :categorie 
@@ -358,7 +379,6 @@ class Article {
         return $stmt;
     }
 
-    // Compter les articles par catégorie
     public function compterParCategorie($categorie) {
         $query = "SELECT COUNT(*) as total FROM " . $this->table_name . " 
                   WHERE Statut = 'published' AND Categorie = :categorie";
@@ -370,7 +390,6 @@ class Article {
         return $row['total'];
     }
 
-    // Récupérer les statistiques des articles
     public function getStatistiques() {
         $query = "SELECT 
                     COUNT(*) as total_articles,
@@ -385,10 +404,9 @@ class Article {
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    // Mettre à jour le statut d'un article
     public function mettreAJourStatut($article_id, $statut) {
         $query = "UPDATE " . $this->table_name . " 
-                  SET Statut = :statut 
+                  SET Statut = :statut, updated_at = NOW()
                   WHERE Article_ID = :article_id";
         
         $stmt = $this->conn->prepare($query);
@@ -399,6 +417,74 @@ class Article {
             return true;
         }
         return false;
+    }
+
+    // NOUVELLE METHODE : Récupérer un article avec toutes les infos auteur
+    public function lireUnComplet($article_id) {
+        $query = "SELECT a.*, 
+                  CONCAT(u.first_name, ' ', u.last_name) as auteur_nom,
+                  u.username as auteur_username,
+                  u.profile_picture_url as auteur_avatar
+                  FROM " . $this->table_name . " a 
+                  LEFT JOIN users u ON a.Auteur_ID = u.id 
+                  WHERE a.Article_ID = ? 
+                  LIMIT 0,1";
+        
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(1, $article_id);
+        $stmt->execute();
+        
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    // NOUVELLE METHODE : Récupérer les articles avec pagination et infos auteur
+    public function lireAvecAuteursPagination($limit, $offset) {
+        $query = "SELECT a.*, 
+                  CONCAT(u.first_name, ' ', u.last_name) as auteur_nom,
+                  u.username as auteur_username
+                  FROM " . $this->table_name . " a 
+                  LEFT JOIN users u ON a.Auteur_ID = u.id 
+                  WHERE a.Statut = 'published' 
+                  ORDER BY a.Date_Publication DESC 
+                  LIMIT :limit OFFSET :offset";
+        
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(':limit', $limit, PDO::PARAM_INT);
+        $stmt->bindParam(':offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+        
+        return $stmt;
+    }
+
+    // NOUVELLE METHODE : Articles par auteur avec infos
+    public function lireParAuteurComplet($auteur_id, $limit = null, $offset = null) {
+        $query = "SELECT a.*, 
+                  CONCAT(u.first_name, ' ', u.last_name) as auteur_nom
+                  FROM " . $this->table_name . " a 
+                  LEFT JOIN users u ON a.Auteur_ID = u.id 
+                  WHERE a.Auteur_ID = :auteur_id 
+                  AND a.Statut = 'published' 
+                  ORDER BY a.Date_Publication DESC";
+        
+        if ($limit !== null) {
+            $query .= " LIMIT :limit";
+            if ($offset !== null) {
+                $query .= " OFFSET :offset";
+            }
+        }
+        
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(':auteur_id', $auteur_id);
+        
+        if ($limit !== null) {
+            $stmt->bindParam(':limit', $limit, PDO::PARAM_INT);
+            if ($offset !== null) {
+                $stmt->bindParam(':offset', $offset, PDO::PARAM_INT);
+            }
+        }
+        
+        $stmt->execute();
+        return $stmt;
     }
 }
 ?>

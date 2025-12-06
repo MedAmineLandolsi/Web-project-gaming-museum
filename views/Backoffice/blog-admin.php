@@ -15,8 +15,25 @@ $db = $database->getConnection();
 $articleModel = new Article($db);
 $commentaireModel = new Commentaire($db);
 
-// Récupérer tous les articles
+// Récupérer tous les articles avec informations des auteurs
 $articles = $articleModel->lire()->fetchAll(PDO::FETCH_ASSOC);
+
+// Récupérer les articles avec informations complètes d'auteurs
+$articlesWithAuthors = [];
+foreach ($articles as $article) {
+    $articleDetails = $articleModel->lireUnComplet($article['Article_ID']);
+    if ($articleDetails) {
+        $articlesWithAuthors[] = $articleDetails;
+    } else {
+        $articlesWithAuthors[] = array_merge($article, [
+            'auteur_nom' => 'Auteur inconnu',
+            'auteur_username' => '',
+            'auteur_avatar' => ''
+        ]);
+    }
+}
+
+$articles = $articlesWithAuthors;
 
 // Fonctions helper
 function getCategoryLabel($category) {
@@ -57,7 +74,8 @@ $pendingArticles = 0;
 $commentCounts = [];
 
 foreach ($articles as $article) {
-    switch ($article['Statut'] ?? 'pending') {
+    $statut = $article['Statut'] ?? 'pending';
+    switch ($statut) {
         case 'published':
             $publishedArticles++;
             break;
@@ -582,6 +600,23 @@ foreach ($articles as $article) {
             font-family: 'VT323', monospace;
             font-size: 1.2rem;
         }
+        
+        .author-cell {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+        }
+        
+        .author-name {
+            font-family: 'VT323', monospace;
+            font-size: 1rem;
+        }
+        
+        .author-username {
+            font-family: 'VT323', monospace;
+            font-size: 0.8rem;
+            color: var(--secondary-purple);
+        }
 
         /* Search and Filters */
         .admin-toolbar {
@@ -874,6 +909,8 @@ foreach ($articles as $article) {
                         $categorie = isset($article['Categorie']) ? $article['Categorie'] : 'news';
                         $articleId = $article['Article_ID'];
                         $hasComments = ($commentCounts[$articleId] ?? 0) > 0;
+                        $auteurNom = $article['auteur_nom'] ?? 'Auteur inconnu';
+                        $auteurUsername = $article['auteur_username'] ?? '';
                         ?>
                         <tr>
                             <td><?php echo $articleId; ?></td>
@@ -885,7 +922,12 @@ foreach ($articles as $article) {
                                     <?php echo getCategoryLabel($categorie); ?>
                                 </span>
                             </td>
-                            <td>AUTEUR <?php echo $article['Auteur_ID']; ?></td>
+                            <td class="author-cell">
+                                <div class="author-name"><?php echo htmlspecialchars($auteurNom); ?></div>
+                                <?php if (!empty($auteurUsername)): ?>
+                                    <div class="author-username">@<?php echo htmlspecialchars($auteurUsername); ?></div>
+                                <?php endif; ?>
+                            </td>
                             <td><?php echo formatDate($article['Date_Publication']); ?></td>
                             <td>
                                 <span class="status-badge <?php echo $article['Statut'] ?? 'pending'; ?>">
@@ -953,9 +995,10 @@ foreach ($articles as $article) {
 
                     const title = row.cells[1].textContent.toLowerCase();
                     const category = row.cells[2].textContent.toLowerCase();
+                    const author = row.cells[3].textContent.toLowerCase(); // Nouveau : recherche dans l'auteur
                     const status = row.cells[5].textContent.toLowerCase();
 
-                    const matchesSearch = title.includes(searchTerm);
+                    const matchesSearch = title.includes(searchTerm) || author.includes(searchTerm); // Recherche dans titre ET auteur
                     const matchesStatus = !statusValue || status.includes(statusValue);
                     const matchesCategory = !categoryValue || category.includes(categoryValue.toLowerCase());
 

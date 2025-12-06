@@ -9,8 +9,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = htmlspecialchars($_POST['email']);
     $mot_de_passe = $_POST['mot_de_passe'];
     
-    // Vérifier l'utilisateur
-    $query = "SELECT * FROM utilisateurs WHERE email = ?";
+    // Vérifier l'utilisateur dans la table "users"
+    $query = "SELECT * FROM users WHERE email = ? AND status = 'active'";
     $stmt = $db->prepare($query);
     $stmt->bindParam(1, $email);
     $stmt->execute();
@@ -19,21 +19,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         
         // Vérifier le mot de passe
-        if (password_verify($mot_de_passe, $user['mot_de_passe'])) {
+        if (password_verify($mot_de_passe, $user['password'])) {
             // Connexion réussie
             $_SESSION['user_id'] = $user['id'];
-            $_SESSION['user_nom'] = $user['nom'];
-            $_SESSION['user_prenom'] = $user['prenom'];
+            $_SESSION['user_first_name'] = $user['first_name'];
+            $_SESSION['user_last_name'] = $user['last_name'];
             $_SESSION['user_email'] = $user['email'];
+            $_SESSION['username'] = $user['username'];
+            $_SESSION['user_role'] = $user['role'];
+            $_SESSION['user_status'] = $user['status'];
             
-            header('Location: mes-articles.php');
-            exit();
+            // Rediriger selon le rôle
+            if ($user['role'] === 'admin') {
+                header('Location: ../Backoffice/dashboard.php');
+                exit();
+            } else {
+                header('Location: mes-articles.php');
+                exit();
+            }
         } else {
             $error_message = "❌ Mot de passe incorrect.";
         }
     } else {
         $error_message = "❌ Aucun compte trouvé avec cet email.";
     }
+}
+
+// Vérifier si l'utilisateur est déjà connecté
+if (isset($_SESSION['user_id'])) {
+    if ($_SESSION['user_role'] === 'admin') {
+        header('Location: ../Backoffice/dashboard.php');
+    } else {
+        header('Location: mes-articles.php');
+    }
+    exit();
 }
 ?>
 
@@ -289,12 +308,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             font-family: 'Press Start 2P', cursive;
         }
 
+        .success-message {
+            background: rgba(0, 255, 65, 0.1);
+            border: 2px solid rgba(0, 255, 65, 0.3);
+            color: var(--primary-green);
+            padding: 1.5rem 2rem;
+            border-radius: 0;
+            margin-bottom: 2.5rem;
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.9rem;
+            font-family: 'Press Start 2P', cursive;
+        }
+
         .validation-error {
             color: var(--accent-pink);
             font-size: 0.7rem;
             margin-top: 0.5rem;
             display: block;
             font-family: 'VT323', monospace;
+        }
+        
+        .forgot-password {
+            text-align: right;
+            margin-top: 0.5rem;
+        }
+        
+        .forgot-password a {
+            color: var(--secondary-purple);
+            font-size: 0.8rem;
+            text-decoration: none;
+            font-family: 'VT323', monospace;
+        }
+        
+        .forgot-password a:hover {
+            color: var(--primary-green);
         }
 
         @media (max-width: 768px) {
@@ -337,7 +385,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <?php if (isset($_SESSION['user_id'])): ?>
                         <li><a href="submit-article.php">✍️ ÉCRIRE UN ARTICLE</a></li>
                         <li><a href="mes-articles.php">MES ARTICLES</a></li>
-                        <li><a href="deconnexion.php" class="logout-btn">DÉCONNEXION (<?php echo $_SESSION['user_prenom']; ?>)</a></li>
+                        <li><a href="deconnexion.php" class="logout-btn">DÉCONNEXION (<?php echo $_SESSION['user_first_name'] ?? 'Utilisateur'; ?>)</a></li>
                     <?php else: ?>
                         <li><a href="submit-article.php">✍️ ÉCRIRE UN ARTICLE</a></li>
                         <li><a href="connexion.php" class="active">SE CONNECTER</a></li>
@@ -364,6 +412,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     Accédez à votre espace personnel
                 </p>
 
+                <?php if (isset($_SESSION['success_message'])): ?>
+                    <div class="success-message">
+                        <?php echo $_SESSION['success_message']; ?>
+                        <?php unset($_SESSION['success_message']); ?>
+                    </div>
+                <?php endif; ?>
+
                 <?php if (isset($error_message)): ?>
                     <div class="error-message">
                         <?php echo $error_message; ?>
@@ -374,15 +429,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="form-group">
                         <label class="form-label" for="email">EMAIL *</label>
                         <input type="email" class="form-control" name="email" id="email"
-                               placeholder="votre@email.com">
+                               placeholder="votre@email.com" required>
                         <span class="validation-error" id="emailError"></span>
                     </div>
 
                     <div class="form-group">
                         <label class="form-label" for="mot_de_passe">MOT DE PASSE *</label>
                         <input type="password" class="form-control" name="mot_de_passe" id="mot_de_passe"
-                               placeholder="Votre mot de passe">
+                               placeholder="Votre mot de passe" required>
                         <span class="validation-error" id="passwordError"></span>
+                        <div class="forgot-password">
+                            <a href="mot-de-passe-oublie.php">Mot de passe oublié ?</a>
+                        </div>
                     </div>
 
                     <button type="submit" class="submit-btn">
@@ -445,6 +503,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         event.preventDefault();
                     }
                 });
+
+                // Validation en temps réel pour améliorer l'UX
+                const fields = ['email', 'mot_de_passe'];
+                fields.forEach(field => {
+                    const input = document.getElementById(field);
+                    if (input) {
+                        input.addEventListener('blur', function() {
+                            validateField(field, this.value);
+                        });
+                    }
+                });
+
+                function validateField(fieldName, value) {
+                    const errorElement = document.getElementById(fieldName + 'Error');
+                    
+                    switch(fieldName) {
+                        case 'email':
+                            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                            if (!value) {
+                                errorElement.textContent = 'L\'email est obligatoire';
+                            } else if (!emailRegex.test(value)) {
+                                errorElement.textContent = 'Format d\'email invalide';
+                            } else {
+                                errorElement.textContent = '';
+                            }
+                            break;
+                            
+                        case 'mot_de_passe':
+                            if (!value) {
+                                errorElement.textContent = 'Le mot de passe est obligatoire';
+                            } else if (value.length < 6) {
+                                errorElement.textContent = 'Le mot de passe doit contenir au moins 6 caractères';
+                            } else {
+                                errorElement.textContent = '';
+                            }
+                            break;
+                    }
+                }
             }
         });
     </script>

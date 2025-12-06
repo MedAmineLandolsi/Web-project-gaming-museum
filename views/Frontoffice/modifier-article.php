@@ -339,9 +339,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <li><a href="index.php">ACCUEIL</a></li>
                     <li><a href="blog.php">ARTICLES</a></li>
                     <li><a href="about.php">À PROPOS</a></li>
-                    <li><a href="submit-article.php">✍️ ÉCRIRE UN ARTICLE</a></li>
-                    <li><a href="mes-articles.php" class="active">MES ARTICLES</a></li>
-                    <li><a href="deconnexion.php" class="logout-btn">DÉCONNEXION (<?php echo $_SESSION['user_prenom']; ?>)</a></li>
+                    <?php if (isset($_SESSION['user_id'])): ?>
+                        <li><a href="submit-article.php">✍️ ÉCRIRE UN ARTICLE</a></li>
+                        <li><a href="mes-articles.php" class="active">MES ARTICLES</a></li>
+                        <li><a href="deconnexion.php" class="logout-btn">DÉCONNEXION (<?php echo $_SESSION['user_first_name'] ?? 'Utilisateur'; ?>)</a></li>
+                    <?php else: ?>
+                        <li><a href="submit-article.php">✍️ ÉCRIRE UN ARTICLE</a></li>
+                        <li><a href="connexion.php">SE CONNECTER</a></li>
+                        <li><a href="inscription.php">S'INSCRIRE</a></li>
+                    <?php endif; ?>
                 </ul>
                 <div class="mobile-menu">
                     <span></span>

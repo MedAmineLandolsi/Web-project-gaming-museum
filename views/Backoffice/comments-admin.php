@@ -14,6 +14,7 @@ $db = $database->getConnection();
 $commentaireModel = new Commentaire($db);
 $articleModel = new Article($db);
 
+// Récupérer les commentaires avec infos utilisateur et articles
 $commentaires = $commentaireModel->lireAvecArticles()->fetchAll(PDO::FETCH_ASSOC);
 $articles = $articleModel->lire()->fetchAll(PDO::FETCH_ASSOC);
 
@@ -36,13 +37,33 @@ foreach ($commentaires as $comment) {
     }
 }
 
+// Calculer les statistiques des commentateurs
 $commenters = [];
+$commenterDetails = []; // Stocker les détails des commentateurs
 foreach ($commentaires as $comment) {
-    $author = $comment['Auteur'];
-    $commenters[$author] = ($commenters[$author] ?? 0) + 1;
+    $authorId = $comment['User_ID'] ?? 0;
+    $authorName = $comment['auteur_nom'] ?? 'Utilisateur inconnu';
+    $username = $comment['username'] ?? '';
+    
+    // Stocker les détails de l'auteur
+    if (!isset($commenterDetails[$authorId])) {
+        $commenterDetails[$authorId] = [
+            'name' => $authorName,
+            'username' => $username,
+            'count' => 0
+        ];
+    }
+    
+    $commenters[$authorId] = ($commenters[$authorId] ?? 0) + 1;
+    $commenterDetails[$authorId]['count'] = $commenters[$authorId];
 }
-$topCommenter = $commenters ? array_keys($commenters, max($commenters))[0] : '-';
 
+// Trouver le top commentateur
+$topCommenterId = $commenters ? array_keys($commenters, max($commenters))[0] : null;
+$topCommenter = $topCommenterId ? $commenterDetails[$topCommenterId]['name'] : '-';
+$topCommenterUsername = $topCommenterId ? $commenterDetails[$topCommenterId]['username'] : '';
+
+// Calculer la longueur moyenne des commentaires
 $totalLength = 0;
 foreach ($commentaires as $comment) {
     $totalLength += strlen($comment['Contenu']);
@@ -377,6 +398,12 @@ $avgLength = $totalComments > 0 ? round($totalLength / $totalComments) : 0;
             color: var(--warning-orange);
             text-shadow: 0 0 10px var(--warning-orange);
         }
+        
+        .stat-username {
+            font-size: 0.8rem;
+            color: var(--secondary-purple);
+            font-family: 'VT323', monospace;
+        }
 
         /* Comments List */
         .comments-list {
@@ -412,12 +439,24 @@ $avgLength = $totalComments > 0 ? round($totalLength / $totalComments) : 0;
             flex-direction: column;
             gap: 0.75rem;
         }
+        
+        .comment-author-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+        }
 
         .comment-author {
             color: var(--primary-green);
             font-weight: bold;
             font-size: 0.8rem;
             font-family: 'Press Start 2P', cursive;
+        }
+        
+        .comment-author-username {
+            color: var(--secondary-purple);
+            font-size: 0.7rem;
+            font-family: 'VT323', monospace;
         }
 
         .comment-article {
@@ -660,7 +699,10 @@ $avgLength = $totalComments > 0 ? round($totalLength / $totalComments) : 0;
             <div class="stat-card stat-accent">
                 <div class="stat-icon">👑</div>
                 <div class="stat-content">
-                    <div class="stat-value" style="font-size: 1rem;"><?php echo $topCommenter; ?></div>
+                    <div class="stat-value" style="font-size: 1rem;"><?php echo htmlspecialchars($topCommenter); ?></div>
+                    <?php if ($topCommenterUsername): ?>
+                        <div class="stat-username">@<?php echo htmlspecialchars($topCommenterUsername); ?></div>
+                    <?php endif; ?>
                     <div class="stat-label">TOP COMMENTATEUR</div>
                 </div>
             </div>
@@ -698,13 +740,18 @@ $avgLength = $totalComments > 0 ? round($totalLength / $totalComments) : 0;
             <div class="comments-list" id="commentsList">
                 <?php if (count($commentaires) > 0): ?>
                     <?php foreach ($commentaires as $comment): ?>
-                    <div class="comment-item" data-comment-id="<?php echo $comment['ID']; ?>">
+                    <div class="comment-item" data-comment-id="<?php echo $comment['ID']; ?>" data-user-id="<?php echo $comment['User_ID']; ?>">
                         <div class="comment-header">
                             <div class="comment-meta">
-                                <div class="comment-author"><?php echo htmlspecialchars($comment['Auteur']); ?></div>
+                                <div class="comment-author-info">
+                                    <div class="comment-author"><?php echo htmlspecialchars($comment['auteur_nom'] ?? 'Utilisateur inconnu'); ?></div>
+                                    <?php if (!empty($comment['username'])): ?>
+                                        <div class="comment-author-username">@<?php echo htmlspecialchars($comment['username']); ?></div>
+                                    <?php endif; ?>
+                                </div>
                                 <div class="comment-article">
                                     SUR <a href="../frontoffice/blog-single.php?id=<?php echo $comment['Article_ID']; ?>" target="_blank">
-                                        <?php echo htmlspecialchars($comment['Titre'] ?? 'ARTICLE SUPPRIMÉ'); ?>
+                                        <?php echo htmlspecialchars($comment['article_titre'] ?? 'ARTICLE SUPPRIMÉ'); ?>
                                     </a>
                                 </div>
                                 <div class="comment-date"><?php echo formatDateTime($comment['Date_Commentaire']); ?></div>
@@ -755,11 +802,14 @@ $avgLength = $totalComments > 0 ? round($totalLength / $totalComments) : 0;
 
                 commentItems.forEach(item => {
                     const author = item.querySelector('.comment-author').textContent.toLowerCase();
+                    const username = item.querySelector('.comment-author-username')?.textContent.toLowerCase() || '';
                     const content = item.querySelector('.comment-content').textContent.toLowerCase();
                     const article = item.querySelector('.comment-article a').textContent.toLowerCase();
                     const date = item.querySelector('.comment-date').textContent;
 
-                    const matchesSearch = author.includes(searchTerm) || content.includes(searchTerm);
+                    const matchesSearch = author.includes(searchTerm) || 
+                                         username.includes(searchTerm) || 
+                                         content.includes(searchTerm);
                     const matchesArticle = !articleValue || item.getAttribute('data-comment-id').includes(articleValue);
                     const matchesDate = !dateValue || filterByDate(date, dateValue);
 
