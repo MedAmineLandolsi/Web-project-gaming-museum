@@ -78,6 +78,17 @@ class Article {
     }
 
     public function creer() {
+        // D'abord vérifier si l'auteur existe dans la table users
+        $check_query = "SELECT COUNT(*) FROM users WHERE id = :Auteur_ID";
+        $check_stmt = $this->conn->prepare($check_query);
+        $check_stmt->bindParam(":Auteur_ID", $this->Auteur_ID);
+        $check_stmt->execute();
+        $user_exists = $check_stmt->fetchColumn();
+        
+        if (!$user_exists) {
+            throw new Exception("L'auteur avec l'ID " . $this->Auteur_ID . " n'existe pas dans la table users.");
+        }
+
         $query = "INSERT INTO " . $this->table_name . " 
                  SET Titre=:Titre, Contenu=:Contenu, Categorie=:Categorie, 
                      Auteur_ID=:Auteur_ID, Date_Publication=:Date_Publication, 
@@ -88,13 +99,13 @@ class Article {
         $this->Titre = htmlspecialchars(strip_tags($this->Titre));
         $this->Contenu = htmlspecialchars(strip_tags($this->Contenu));
         $this->Categorie = htmlspecialchars(strip_tags($this->Categorie));
-        $this->Auteur_ID = htmlspecialchars(strip_tags($this->Auteur_ID));
+        $this->Auteur_ID = (int) $this->Auteur_ID; // S'assurer que c'est un entier
         $this->Statut = htmlspecialchars(strip_tags($this->Statut));
         
         $stmt->bindParam(":Titre", $this->Titre);
         $stmt->bindParam(":Contenu", $this->Contenu);
         $stmt->bindParam(":Categorie", $this->Categorie);
-        $stmt->bindParam(":Auteur_ID", $this->Auteur_ID);
+        $stmt->bindParam(":Auteur_ID", $this->Auteur_ID, PDO::PARAM_INT);
         $stmt->bindParam(":Date_Publication", $this->Date_Publication);
         $stmt->bindParam(":Statut", $this->Statut);
         
@@ -106,6 +117,17 @@ class Article {
     }
 
     public function mettreAJour() {
+        // Vérifier si l'auteur existe dans la table users
+        $check_query = "SELECT COUNT(*) FROM users WHERE id = :Auteur_ID";
+        $check_stmt = $this->conn->prepare($check_query);
+        $check_stmt->bindParam(":Auteur_ID", $this->Auteur_ID);
+        $check_stmt->execute();
+        $user_exists = $check_stmt->fetchColumn();
+        
+        if (!$user_exists) {
+            throw new Exception("L'auteur avec l'ID " . $this->Auteur_ID . " n'existe pas dans la table users.");
+        }
+
         $query = "UPDATE " . $this->table_name . " 
                  SET Titre=:Titre, Contenu=:Contenu, Categorie=:Categorie, 
                      Auteur_ID=:Auteur_ID, Statut=:Statut, updated_at=NOW()
@@ -116,16 +138,16 @@ class Article {
         $this->Titre = htmlspecialchars(strip_tags($this->Titre));
         $this->Contenu = htmlspecialchars(strip_tags($this->Contenu));
         $this->Categorie = htmlspecialchars(strip_tags($this->Categorie));
-        $this->Auteur_ID = htmlspecialchars(strip_tags($this->Auteur_ID));
+        $this->Auteur_ID = (int) $this->Auteur_ID;
         $this->Statut = htmlspecialchars(strip_tags($this->Statut));
-        $this->Article_ID = htmlspecialchars(strip_tags($this->Article_ID));
+        $this->Article_ID = (int) $this->Article_ID;
         
         $stmt->bindParam(":Titre", $this->Titre);
         $stmt->bindParam(":Contenu", $this->Contenu);
         $stmt->bindParam(":Categorie", $this->Categorie);
-        $stmt->bindParam(":Auteur_ID", $this->Auteur_ID);
+        $stmt->bindParam(":Auteur_ID", $this->Auteur_ID, PDO::PARAM_INT);
         $stmt->bindParam(":Statut", $this->Statut);
-        $stmt->bindParam(":Article_ID", $this->Article_ID);
+        $stmt->bindParam(":Article_ID", $this->Article_ID, PDO::PARAM_INT);
         
         if($stmt->execute()) {
             return true;
@@ -134,6 +156,17 @@ class Article {
     }
 
     public function modifier() {
+        // Vérifier si l'auteur existe
+        $check_query = "SELECT COUNT(*) FROM users WHERE id = :Auteur_ID";
+        $check_stmt = $this->conn->prepare($check_query);
+        $check_stmt->bindParam(":Auteur_ID", $this->Auteur_ID);
+        $check_stmt->execute();
+        $user_exists = $check_stmt->fetchColumn();
+        
+        if (!$user_exists) {
+            throw new Exception("L'auteur avec l'ID " . $this->Auteur_ID . " n'existe pas dans la table users.");
+        }
+
         $query = "UPDATE " . $this->table_name . " 
                  SET Titre=:Titre, Contenu=:Contenu, Categorie=:Categorie, updated_at=NOW()
                  WHERE Article_ID=:Article_ID AND Auteur_ID=:Auteur_ID";
@@ -143,14 +176,14 @@ class Article {
         $this->Titre = htmlspecialchars(strip_tags($this->Titre));
         $this->Contenu = htmlspecialchars(strip_tags($this->Contenu));
         $this->Categorie = htmlspecialchars(strip_tags($this->Categorie));
-        $this->Article_ID = htmlspecialchars(strip_tags($this->Article_ID));
-        $this->Auteur_ID = htmlspecialchars(strip_tags($this->Auteur_ID));
+        $this->Article_ID = (int) $this->Article_ID;
+        $this->Auteur_ID = (int) $this->Auteur_ID;
         
         $stmt->bindParam(":Titre", $this->Titre);
         $stmt->bindParam(":Contenu", $this->Contenu);
         $stmt->bindParam(":Categorie", $this->Categorie);
-        $stmt->bindParam(":Article_ID", $this->Article_ID);
-        $stmt->bindParam(":Auteur_ID", $this->Auteur_ID);
+        $stmt->bindParam(":Article_ID", $this->Article_ID, PDO::PARAM_INT);
+        $stmt->bindParam(":Auteur_ID", $this->Auteur_ID, PDO::PARAM_INT);
         
         if($stmt->execute()) {
             return true;
@@ -257,7 +290,6 @@ class Article {
         return $stmt;
     }
 
-    // MÉTHODES POUR LE TRI PAR CATÉGORIE AVEC PAGINATION
     public function compterPubliesParCategorie($categorie) {
         $query = "SELECT COUNT(*) as total FROM " . $this->table_name . " 
                   WHERE Statut = 'published' AND Categorie = :categorie";
@@ -420,7 +452,6 @@ class Article {
         return false;
     }
 
-    // NOUVELLE METHODE : Récupérer un article avec toutes les infos auteur
     public function lireUnComplet($article_id) {
         $query = "SELECT a.*, 
                   CONCAT(u.first_name, ' ', u.last_name) as auteur_nom,
@@ -438,7 +469,6 @@ class Article {
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    // NOUVELLE METHODE : Récupérer les articles avec pagination et infos auteur
     public function lireAvecAuteursPagination($limit, $offset) {
         $query = "SELECT a.*, 
                   CONCAT(u.first_name, ' ', u.last_name) as auteur_nom,
@@ -457,7 +487,6 @@ class Article {
         return $stmt;
     }
 
-    // NOUVELLE METHODE : Articles par auteur avec infos
     public function lireParAuteurComplet($auteur_id, $limit = null, $offset = null) {
         $query = "SELECT a.*, 
                   CONCAT(u.first_name, ' ', u.last_name) as auteur_nom
@@ -488,4 +517,3 @@ class Article {
         return $stmt;
     }
 }
-?>

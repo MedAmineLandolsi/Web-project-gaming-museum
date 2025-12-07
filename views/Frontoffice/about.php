@@ -924,7 +924,22 @@ $recentArticles = $articleModel->lireDerniers(10)->fetchAll(PDO::FETCH_ASSOC);
                     <?php if (isset($_SESSION['user_id'])): ?>
                         <li><a href="submit-article.php">✍️ ÉCRIRE UN ARTICLE</a></li>
                         <li><a href="mes-articles.php">MES ARTICLES</a></li>
-                        <li><a href="deconnexion.php" class="logout-btn">DÉCONNEXION (<?php echo $_SESSION['user_prenom']; ?>)</a></li>
+                        <li>
+                            <a href="deconnexion.php" class="logout-btn">
+                                DÉCONNEXION (
+                                <?php 
+                                    // CORRECTION ICI : Utiliser user_first_name ou user_username
+                                    if (isset($_SESSION['user_first_name']) && !empty($_SESSION['user_first_name'])) {
+                                        echo htmlspecialchars($_SESSION['user_first_name']);
+                                    } elseif (isset($_SESSION['user_username'])) {
+                                        echo htmlspecialchars($_SESSION['user_username']);
+                                    } else {
+                                        echo 'Utilisateur';
+                                    }
+                                ?>
+                                )
+                            </a>
+                        </li>
                     <?php else: ?>
                         <li><a href="submit-article.php">✍️ ÉCRIRE UN ARTICLE</a></li>
                         <li><a href="connexion.php">SE CONNECTER</a></li>
@@ -967,7 +982,7 @@ $recentArticles = $articleModel->lireDerniers(10)->fetchAll(PDO::FETCH_ASSOC);
                     </p>
 
                     <p>
-                        Notre plateforme est ouverte à tous les passionnés qui souhaitent 
+                        Notre plateforme est ouverte à tous les passionnés qui souhagent 
                         partager leur expérience, leurs analyses et leur amour du gaming 
                         avec une communauté grandissante de joueurs.
                     </p>
@@ -1135,8 +1150,13 @@ $recentArticles = $articleModel->lireDerniers(10)->fetchAll(PDO::FETCH_ASSOC);
                         <li><a href="blog.php">Articles</a></li>
                         <li><a href="about.php">À propos</a></li>
                         <li><a href="submit-article.php">Écrire un article</a></li>
-                        <li><a href="mes-articles.php">Mes articles</a></li>
-                        <li><a href="deconnexion.php">Déconnexion</a></li>
+                        <?php if (isset($_SESSION['user_id'])): ?>
+                            <li><a href="mes-articles.php">Mes articles</a></li>
+                            <li><a href="deconnexion.php">Déconnexion</a></li>
+                        <?php else: ?>
+                            <li><a href="connexion.php">Connexion</a></li>
+                            <li><a href="inscription.php">Inscription</a></li>
+                        <?php endif; ?>
                     </ul>
                 </div>
                 <div class="footer-section">

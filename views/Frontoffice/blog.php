@@ -739,7 +739,22 @@ function generatePageUrl($page, $categorie = '') {
                     <?php if (isset($_SESSION['user_id'])): ?>
                         <li><a href="submit-article.php">✍️ ÉCRIRE UN ARTICLE</a></li>
                         <li><a href="mes-articles.php">MES ARTICLES</a></li>
-                        <li><a href="deconnexion.php" class="logout-btn">DÉCONNEXION (<?php echo $_SESSION['user_prenom']; ?>)</a></li>
+                        <li>
+                            <a href="deconnexion.php" class="logout-btn">
+                                DÉCONNEXION (
+                                <?php 
+                                    // CORRECTION ICI : Utiliser user_first_name ou user_username
+                                    if (isset($_SESSION['user_first_name']) && !empty($_SESSION['user_first_name'])) {
+                                        echo htmlspecialchars($_SESSION['user_first_name']);
+                                    } elseif (isset($_SESSION['user_username'])) {
+                                        echo htmlspecialchars($_SESSION['user_username']);
+                                    } else {
+                                        echo 'Utilisateur';
+                                    }
+                                ?>
+                                )
+                            </a>
+                        </li>
                     <?php else: ?>
                         <li><a href="submit-article.php">✍️ ÉCRIRE UN ARTICLE</a></li>
                         <li><a href="connexion.php">SE CONNECTER</a></li>
@@ -835,7 +850,7 @@ function generatePageUrl($page, $categorie = '') {
                         </p>
                         <div class="article-meta">
                             <span>📅 <?php echo date('d/m/Y', strtotime($article['Date_Publication'])); ?></span>
-                            <span>👤 Auteur <?php echo $article['Auteur_ID']; ?></span>
+                            <span>👤 Auteur <?php echo htmlspecialchars($article['Auteur_ID']); ?></span>
                         </div>
                         
                         <div style="display: flex; flex-direction: column; gap: 1rem;">
@@ -951,8 +966,13 @@ function generatePageUrl($page, $categorie = '') {
                         <li><a href="blog.php">Articles</a></li>
                         <li><a href="about.php">À propos</a></li>
                         <li><a href="submit-article.php">Écrire un article</a></li>
-                        <li><a href="mes-articles.php">Mes articles</a></li>
-                        <li><a href="deconnexion.php">Déconnexion</a></li>
+                        <?php if (isset($_SESSION['user_id'])): ?>
+                            <li><a href="mes-articles.php">Mes articles</a></li>
+                            <li><a href="deconnexion.php">Déconnexion</a></li>
+                        <?php else: ?>
+                            <li><a href="connexion.php">Connexion</a></li>
+                            <li><a href="inscription.php">Inscription</a></li>
+                        <?php endif; ?>
                     </ul>
                 </div>
                 <div class="footer-section">

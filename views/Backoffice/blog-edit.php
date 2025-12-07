@@ -2,8 +2,6 @@
 session_start();
 include_once '../../config/database.php';
 include_once '../../models/Article.php';
-// Si vous avez un modèle User, l'inclure ici
-// include_once '../../models/User.php';
 
 // Vérifier l'authentification
 if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
@@ -14,9 +12,6 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
 $database = new Database();
 $db = $database->getConnection();
 $articleModel = new Article($db);
-
-// Si vous avez un modèle User pour la liste des auteurs
-// $userModel = new User($db);
 
 $currentArticle = null;
 $pageTitle = 'NOUVEL ARTICLE';
@@ -47,46 +42,100 @@ if (isset($_GET['id'])) {
     }
 }
 
+// Récupérer la liste des utilisateurs depuis la base de données
+$users = [];
+$author_options = '<option value="">-- SÉLECTIONNEZ UN AUTEUR --</option>';
+try {
+    $query = "SELECT id, username, first_name, last_name, email, role FROM users ORDER BY username ASC";
+    $stmt = $db->prepare($query);
+    $stmt->execute();
+    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Construire les options pour le select
+    foreach ($users as $user) {
+        $selected = ($currentArticle && $currentArticle['Auteur_ID'] == $user['id']) ? 'selected' : '';
+        $display_name = !empty(trim($user['first_name'] . ' ' . $user['last_name'])) 
+            ? htmlspecialchars($user['first_name'] . ' ' . $user['last_name'])
+            : htmlspecialchars($user['username']);
+        
+        $author_options .= sprintf(
+            '<option value="%d" %s>%s (@%s) - %s</option>',
+            $user['id'],
+            $selected,
+            $display_name,
+            htmlspecialchars($user['username']),
+            htmlspecialchars($user['role'])
+        );
+    }
+} catch (PDOException $e) {
+    error_log("Erreur lors de la récupération des utilisateurs: " . $e->getMessage());
+    $error_message = "Impossible de charger la liste des utilisateurs. Erreur: " . $e->getMessage();
+}
+
 // Traitement du formulaire
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $articleModel->Titre = htmlspecialchars($_POST['title']);
     $articleModel->Contenu = htmlspecialchars($_POST['content']);
     $articleModel->Categorie = $_POST['category'];
-    $articleModel->Auteur_ID = $_POST['author'];
+    $articleModel->Auteur_ID = (int)$_POST['author']; // Cast en entier
     $articleModel->Statut = $_POST['status'];
     
-    if (isset($_POST['article_id'])) {
-        // Mode édition
-        $articleModel->Article_ID = $_POST['article_id'];
-        if ($articleModel->mettreAJour()) {
-            $_SESSION['success_message'] = 'ARTICLE MIS À JOUR AVEC SUCCÈS!';
-            header('Location: blog-admin.php');
-            exit();
-        } else {
-            $error_message = 'ERREUR LORS DE LA MISE À JOUR.';
+    // Vérifier que l'auteur existe
+    if ($articleModel->Auteur_ID <= 0) {
+        $error_message = 'ERREUR : L\'ID DE L\'AUTEUR DOIT ÊTRE UN NOMBRE POSITIF.';
+    } elseif (!empty($users)) {
+        // Vérifier que l'auteur existe dans la liste
+        $author_exists = false;
+        foreach ($users as $user) {
+            if ($user['id'] == $articleModel->Auteur_ID) {
+                $author_exists = true;
+                break;
+            }
         }
-    } else {
-        // Mode création
-        $articleModel->Date_Publication = date('Y-m-d H:i:s');
-        if ($articleModel->creer()) {
-            $_SESSION['success_message'] = 'ARTICLE CRÉÉ AVEC SUCCÈS!';
-            header('Location: blog-admin.php');
-            exit();
+        
+        if (!$author_exists) {
+            $error_message = 'ERREUR : L\'AUTEUR SÉLECTIONNÉ N\'EXISTE PAS DANS LA BASE DE DONNÉES.';
+        }
+    }
+    
+    // Si pas d'erreur, continuer avec la création/mise à jour
+    if (!isset($error_message)) {
+        if (isset($_POST['article_id'])) {
+            // Mode édition
+            $articleModel->Article_ID = $_POST['article_id'];
+            try {
+                if ($articleModel->mettreAJour()) {
+                    $_SESSION['success_message'] = 'ARTICLE MIS À JOUR AVEC SUCCÈS!';
+                    header('Location: blog-admin.php');
+                    exit();
+                } else {
+                    $error_message = 'ERREUR LORS DE LA MISE À JOUR.';
+                }
+            } catch (Exception $e) {
+                $error_message = $e->getMessage();
+            }
         } else {
-            $error_message = 'ERREUR LORS DE LA CRÉATION.';
+            // Mode création
+            $articleModel->Date_Publication = date('Y-m-d H:i:s');
+            try {
+                if ($articleModel->creer()) {
+                    $_SESSION['success_message'] = 'ARTICLE CRÉÉ AVEC SUCCÈS!';
+                    header('Location: blog-admin.php');
+                    exit();
+                } else {
+                    $error_message = 'ERREUR LORS DE LA CRÉATION.';
+                }
+            } catch (Exception $e) {
+                $error_message = $e->getMessage();
+            }
         }
     }
 }
 
 // Messages
 $success_message = $_SESSION['success_message'] ?? '';
-$error_message = $_SESSION['error_message'] ?? '';
+$error_message = $_SESSION['error_message'] ?? $error_message ?? '';
 unset($_SESSION['success_message'], $_SESSION['error_message']);
-
-// Récupérer la liste des utilisateurs pour le sélecteur d'auteur
-// Si vous avez un modèle User, vous pouvez faire :
-// $users = $userModel->lire()->fetchAll(PDO::FETCH_ASSOC);
-// Pour l'instant, on garde l'input manuel
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -96,6 +145,7 @@ unset($_SESSION['success_message'], $_SESSION['error_message']);
     <title><?php echo $pageTitle; ?> - ADMIN</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
     <style>
+        /* Votre CSS existant reste inchangé */
         * {
             margin: 0;
             padding: 0;
@@ -350,6 +400,15 @@ unset($_SESSION['success_message'], $_SESSION['error_message']);
             box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);
         }
 
+        select.form-control {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2300FF41' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            background-size: 12px;
+            padding-right: 2.5rem;
+        }
+
         textarea.form-control {
             resize: vertical;
             min-height: 400px;
@@ -547,13 +606,13 @@ unset($_SESSION['success_message'], $_SESSION['error_message']);
                     <label for="articleTitle" class="form-label">TITRE DE L'ARTICLE *</label>
                     <input type="text" class="form-control" id="articleTitle" name="title" required
                            placeholder="ENTREZ LE TITRE DE L'ARTICLE"
-                           value="<?php echo $currentArticle['Titre'] ?? ''; ?>">
+                           value="<?php echo htmlspecialchars($currentArticle['Titre'] ?? ''); ?>">
                 </div>
 
                 <div class="form-group">
                     <label for="articleContent" class="form-label">CONTENU DE L'ARTICLE *</label>
                     <textarea class="form-control" id="articleContent" name="content" required
-                              placeholder="RÉDIGEZ VOTRE ARTICLE ICI..."><?php echo $currentArticle['Contenu'] ?? ''; ?></textarea>
+                              placeholder="RÉDIGEZ VOTRE ARTICLE ICI..."><?php echo htmlspecialchars($currentArticle['Contenu'] ?? ''); ?></textarea>
                 </div>
 
                 <div class="form-group">
@@ -567,13 +626,20 @@ unset($_SESSION['success_message'], $_SESSION['error_message']);
                 </div>
 
                 <div class="form-group">
-                    <label for="articleAuthor" class="form-label">AUTEUR ID *</label>
-                    <input type="number" class="form-control" id="articleAuthor" name="author" required
-                           placeholder="ID DE L'AUTEUR"
-                           value="<?php echo $currentArticle['Auteur_ID'] ?? '1'; ?>">
-                    <div class="form-help">
-                        ENTREZ L'ID NUMÉRIQUE DE L'AUTEUR (1 PAR DÉFAUT POUR L'ADMIN)
-                    </div>
+                    <label for="articleAuthor" class="form-label">AUTEUR *</label>
+                    <?php if (empty($users)): ?>
+                        <div class="notification error">
+                            ❌ IMPOSSIBLE DE CHARGER LA LISTE DES UTILISATEURS. VEUILLEZ CRÉER DES UTILISATEURS D'ABORD.
+                        </div>
+                        <input type="hidden" name="author" value="0">
+                    <?php else: ?>
+                        <select class="form-control" id="articleAuthor" name="author" required>
+                            <?php echo $author_options; ?>
+                        </select>
+                        <div class="form-help">
+                            SÉLECTIONNEZ UN AUTEUR EXISTANT DANS LA BASE DE DONNÉES
+                        </div>
+                    <?php endif; ?>
                     
                     <?php if ($currentArticle && !empty($currentArticle['auteur_nom'])): ?>
                         <div class="author-info">
@@ -595,7 +661,7 @@ unset($_SESSION['success_message'], $_SESSION['error_message']);
                 </div>
 
                 <div class="form-actions">
-                    <button type="submit" class="btn btn-success">
+                    <button type="submit" class="btn btn-success" <?php echo empty($users) ? 'disabled' : ''; ?>>
                         <?php echo $submitButtonText; ?>
                     </button>
                     <button type="button" class="btn btn-danger" onclick="window.location.href='blog-admin.php'">
@@ -611,9 +677,11 @@ unset($_SESSION['success_message'], $_SESSION['error_message']);
         document.getElementById('articleForm').addEventListener('submit', function(e) {
             const title = document.getElementById('articleTitle').value.trim();
             const content = document.getElementById('articleContent').value.trim();
-            const author = document.getElementById('articleAuthor').value.trim();
+            const author = document.getElementById('articleAuthor') ? document.getElementById('articleAuthor').value : '0';
+            const category = document.getElementById('articleCategory').value;
+            const status = document.getElementById('articleStatus').value;
 
-            if (!title || !content || !author) {
+            if (!title || !content || !category || !status) {
                 e.preventDefault();
                 alert('VEUILLEZ REMPLIR TOUS LES CHAMPS OBLIGATOIRES.');
                 return false;
@@ -631,10 +699,10 @@ unset($_SESSION['success_message'], $_SESSION['error_message']);
                 return false;
             }
 
-            // Vérifier que l'ID auteur est un nombre valide
-            if (isNaN(author) || parseInt(author) <= 0) {
+            // Vérifier qu'un auteur est sélectionné
+            if (author === "" || author === "0") {
                 e.preventDefault();
-                alert('L\'ID DE L\'AUTEUR DOIT ÊTRE UN NOMBRE POSITIF.');
+                alert('VEUILLEZ SÉLECTIONNER UN AUTEUR VALIDE.');
                 return false;
             }
 
@@ -646,14 +714,33 @@ unset($_SESSION['success_message'], $_SESSION['error_message']);
         if (contentTextarea) {
             contentTextarea.addEventListener('input', function() {
                 const charCount = this.value.length;
+                const counter = document.getElementById('charCount') || (function() {
+                    const counter = document.createElement('div');
+                    counter.id = 'charCount';
+                    counter.style.color = 'var(--text-gray)';
+                    counter.style.fontSize = '0.5rem';
+                    counter.style.marginTop = '0.5rem';
+                    counter.style.fontFamily = "'Press Start 2P', cursive";
+                    this.parentNode.appendChild(counter);
+                    return counter;
+                })();
+                
+                counter.textContent = `Caractères: ${charCount}`;
+                
                 if (charCount < 50) {
                     this.style.borderColor = 'var(--danger-red)';
+                    counter.style.color = 'var(--danger-red)';
                 } else if (charCount < 200) {
                     this.style.borderColor = 'var(--warning-orange)';
+                    counter.style.color = 'var(--warning-orange)';
                 } else {
                     this.style.borderColor = 'var(--primary-green)';
+                    counter.style.color = 'var(--primary-green)';
                 }
             });
+            
+            // Déclencher l'événement initial
+            contentTextarea.dispatchEvent(new Event('input'));
         }
     </script>
 </body>

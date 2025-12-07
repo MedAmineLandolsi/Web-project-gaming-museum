@@ -388,7 +388,7 @@ try {
                 <?php endif; ?>
                 
                 <p style="margin-top: 1rem;">
-                    <a href="../../index.php" style="color: var(--text-gray); text-decoration: none;">
+                    <a href="../Frontoffice/index.php" style="color: var(--text-gray); text-decoration: none;">
                         ← Retour au site public
                     </a>
                 </p>
