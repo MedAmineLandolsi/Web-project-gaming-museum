@@ -1,7 +1,7 @@
 <?php
 // seed_data.php - Script pour insérer des données de démonstration
 session_start();
-require_once 'config/database.php';
+require_once 'config.php';
 
 try {
     $database = new Database();
@@ -50,18 +50,29 @@ try {
     ];
 
     foreach ($membres as $membre) {
+        // Vérifier si l'email existe déjà
+        $checkQuery = "SELECT COUNT(*) FROM membre WHERE email = :email";
+        $checkStmt = $db->prepare($checkQuery);
+        $checkStmt->bindParam(':email', $membre['email']);
+        $checkStmt->execute();
+        $exists = $checkStmt->fetchColumn();
+
+        if ($exists) {
+            echo "<p style='color: orange;'>! Email déjà existant: " . $membre['email'] . "</p>";
+            continue;
+        }
+
         $query = "INSERT INTO membre (nom, prenom, email, mot_de_passe, statut, avatar, bio) 
                   VALUES (:nom, :prenom, :email, :mot_de_passe, :statut, :avatar, :bio)";
-        
         $stmt = $db->prepare($query);
         $stmt->bindParam(':nom', $membre['nom']);
         $stmt->bindParam(':prenom', $membre['prenom']);
         $stmt->bindParam(':email', $membre['email']);
-        $stmt->bindParam(':mot_de_passe', password_hash($membre['mot_de_passe'], PASSWORD_DEFAULT));
+        $mot_de_passe_hash = password_hash($membre['mot_de_passe'], PASSWORD_DEFAULT);
+        $stmt->bindParam(':mot_de_passe', $mot_de_passe_hash);
         $stmt->bindParam(':statut', $membre['statut']);
         $stmt->bindParam(':avatar', $membre['avatar']);
         $stmt->bindParam(':bio', $membre['bio']);
-        
         if($stmt->execute()) {
             echo "<p style='color: green;'>✓ Membre créé: " . $membre['prenom'] . " " . $membre['nom'] . "</p>";
         }

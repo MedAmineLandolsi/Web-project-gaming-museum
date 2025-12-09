@@ -35,15 +35,18 @@ try {
     require_once __DIR__ . '/../config.php';
     require_once __DIR__ . '/../models/Communaute.php';
 
-    // Récupérer les données JSON
-    $rawInput = file_get_contents('php://input');
-    $input = json_decode($rawInput, true);
-
-    if (json_last_error() !== JSON_ERROR_NONE) {
-        send_json(['success' => false, 'message' => 'Données JSON invalides'], 400);
+    // Récupérer les données (peut être POST ou JSON)
+    $communaute_id = null;
+    if (!empty($_POST['communaute_id'])) {
+        $communaute_id = (int)$_POST['communaute_id'];
+    } else {
+        $rawInput = file_get_contents('php://input');
+        $input = json_decode($rawInput, true);
+        if (json_last_error() === JSON_ERROR_NONE && isset($input['communaute_id'])) {
+            $communaute_id = (int)$input['communaute_id'];
+        }
     }
 
-    $communaute_id = isset($input['communaute_id']) ? (int)$input['communaute_id'] : null;
     $user_id = (int)$_SESSION['user_id'];
 
     if (!$communaute_id || $communaute_id <= 0) {
@@ -64,30 +67,9 @@ try {
 
     // Mapper le user_id (auth) vers le membre_id (table membre)
     $membre_id = $membreModel->findByUserId($user_id);
-    // Si aucun membre n'existe pour cet user, créer automatiquement un profil membre minimal à partir de la session
+    // Si le membre n'existe pas, renvoyer une erreur claire (on ne crée pas automatiquement au leave)
     if (!$membre_id) {
-        // Tenter de récupérer des infos depuis la session
-        $prenom = $_SESSION['user_prenom'] ?? 'Utilisateur';
-        $nom = $_SESSION['user_nom'] ?? 'Anonyme';
-        $email = $_SESSION['user_email'] ?? ('user' . $user_id . '@local');
-
-        $newMembre = new Membre($db);
-        $newMembre->prenom = $prenom;
-        $newMembre->nom = $nom;
-        $newMembre->email = $email;
-        // Générer un mot de passe aléatoire sécurisé (stocké haché)
-        $newMembre->mot_de_passe = bin2hex(random_bytes(8));
-        $newMembre->statut = 'actif';
-        $newMembre->avatar = $_SESSION['user_avatar'] ?? '';
-        $newMembre->bio = '';
-        $newMembre->user_id = $user_id;
-
-        if ($newMembre->create()) {
-            // Récupérer l'id inséré
-            $membre_id = $db->lastInsertId();
-        } else {
-            send_json(['success' => false, 'message' => 'Impossible de créer le profil membre automatiquement'], 500);
-        }
+        send_json(['success' => false, 'message' => 'Profil membre introuvable pour cet utilisateur. Impossible de quitter.' ], 403);
     }
 
     // Initialiser le modèle de communauté
@@ -99,24 +81,31 @@ try {
         send_json(['success' => false, 'message' => 'Communauté non trouvée'], 404);
     }
 
-    // Vérifier si déjà membre (utiliser membre_id)
-    if ($communauteModel->hasJoined($membre_id, $communaute_id)) {
-        send_json(['success' => false, 'message' => 'Vous êtes déjà membre de cette communauté'], 409);
+    // Empêcher le créateur de se retirer de sa propre communauté (comparer avec membre_id)
+    if ($communauteModel->createur_id == $membre_id) {
+        send_json(['success' => false, 'message' => 'Vous êtes le créateur de la communauté'], 403);
     }
 
-    // Rejoindre la communauté
-    if ($communauteModel->join($membre_id, $communaute_id)) {
-        send_json(['success' => true, 'message' => 'Vous avez rejoint la communauté avec succès !']);
+    // Vérifier si l'utilisateur est membre (utiliser membre_id)
+    if (!$communauteModel->hasJoined($membre_id, $communaute_id)) {
+        send_json(['success' => false, 'message' => "Vous n'êtes pas membre de cette communauté"], 409);
     }
 
-    // Si on arrive ici, l'insertion a échoué
-    send_json(['success' => false, 'message' => 'Erreur lors de l\'ajout à la communauté'], 500);
+    // Quitter la communauté
+    $stmt = $db->prepare("DELETE FROM membre_communaute WHERE membre_id = ? AND communaute_id = ?");
+    $stmt->execute([$membre_id, $communaute_id]);
+
+    if ($stmt->rowCount() > 0) {
+        send_json(['success' => true, 'message' => 'Vous avez quitté la communauté avec succès']);
+    } else {
+        send_json(['success' => false, 'message' => "Erreur lors de la suppression de l'adhésion"], 500);
+    }
 
 } catch (PDOException $e) {
-    error_log("Erreur PDO join-community: " . $e->getMessage());
+    error_log("Erreur PDO leave-community: " . $e->getMessage());
     send_json(['success' => false, 'message' => 'Erreur de base de données'], 500);
 } catch (Exception $e) {
-    error_log("Erreur join-community: " . $e->getMessage());
+    error_log("Erreur leave-community: " . $e->getMessage());
     send_json(['success' => false, 'message' => 'Erreur serveur'], 500);
 } finally {
     ob_end_flush();
