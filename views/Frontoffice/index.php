@@ -47,6 +47,7 @@ unset($_SESSION['error_message']);
             --primary-green: #00FF41;
             --secondary-purple: #BD00FF;
             --accent-pink: #FF006E;
+            --museum-orange: #FF6B00;
             --dark-bg: #0a0a0a;
             --darker-bg: #050505;
             --card-bg: #1a1a1a;
@@ -159,16 +160,17 @@ unset($_SESSION['error_message']);
         .nav-links {
             display: flex;
             list-style: none;
-            gap: 2rem;
+            gap: 1rem;
         }
 
         .nav-links a {
             color: var(--text-white);
             text-decoration: none;
-            font-size: 0.7rem;
+            font-size: 0.6rem;
             transition: all 0.3s;
             padding: 0.5rem 0;
             position: relative;
+            white-space: nowrap;
         }
 
         .nav-links a::after {
@@ -193,10 +195,31 @@ unset($_SESSION['error_message']);
             text-shadow: 0 0 10px var(--primary-green);
         }
 
+        /* BOUTON MUSÉE GAMING - AJOUTÉ */
+        .museum-btn {
+            background: linear-gradient(135deg, var(--museum-orange), #FF8C00);
+            color: var(--text-white) !important;
+            padding: 0.8rem 1.5rem;
+            border-radius: 0;
+            font-weight: bold;
+            border: none;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.6rem;
+            box-shadow: 0 0 20px rgba(255, 107, 0, 0.4);
+            transition: all 0.3s;
+            text-decoration: none !important;
+            display: inline-block;
+        }
+
+        .museum-btn:hover {
+            transform: translateY(-2px) scale(1.05);
+            box-shadow: 0 0 30px rgba(255, 107, 0, 0.8);
+        }
+
         .admin-btn {
             background: linear-gradient(135deg, var(--secondary-purple), var(--accent-pink));
             color: var(--text-white) !important;
-            padding: 0.9rem 1.8rem;
+            padding: 0.8rem 1.5rem;
             border-radius: 0;
             font-weight: bold;
             border: none;
@@ -214,7 +237,7 @@ unset($_SESSION['error_message']);
         .logout-btn {
             background: linear-gradient(135deg, var(--accent-pink), #ff1a75);
             color: var(--text-white) !important;
-            padding: 0.9rem 1.8rem;
+            padding: 0.8rem 1.5rem;
             border-radius: 0;
             font-weight: bold;
             border: none;
@@ -623,6 +646,7 @@ unset($_SESSION['error_message']);
                 background: var(--darker-bg);
                 padding: 1rem;
                 border-top: 2px solid var(--primary-green);
+                gap: 0.5rem;
             }
             
             .nav-links.active {
@@ -639,6 +663,18 @@ unset($_SESSION['error_message']);
 
             .footer-content {
                 grid-template-columns: 1fr;
+            }
+
+            .nav-links a {
+                font-size: 0.7rem;
+                padding: 0.5rem;
+            }
+
+            .museum-btn, .admin-btn, .logout-btn {
+                padding: 0.7rem 1rem;
+                font-size: 0.5rem;
+                width: 100%;
+                text-align: center;
             }
         }
 
@@ -713,14 +749,18 @@ unset($_SESSION['error_message']);
                     <li><a href="blog.php">ARTICLES</a></li>
                     <li><a href="about.php">À PROPOS</a></li>
                     <?php if (isset($_SESSION['user_id'])): ?>
-                        <li><a href="submit-article.php">✍️ ÉCRIRE UN ARTICLE</a></li>
+                        <li><a href="submit-article.php">✍️ ÉCRIRE</a></li>
                         <li><a href="mes-articles.php">MES ARTICLES</a></li>
-                        <li><a href="deconnexion.php" class="logout-btn">DÉCONNEXION (<?php echo $_SESSION['user_first_name'] ?? 'Utilisateur'; ?>)</a></li>
+                        <!-- BOUTON MUSÉE GAMING AJOUTÉ ICI -->
+                        <li><a href="../../../../gaming_museum/view/frontoffice/index.php" class="museum-btn">🎮 MUSÉE GAMING</a></li>
+                        <li><a href="deconnexion.php" class="logout-btn">DÉCO (<?php echo $_SESSION['user_first_name'] ?? 'User'; ?>)</a></li>
                     <?php else: ?>
-                        <li><a href="submit-article.php">✍️ ÉCRIRE UN ARTICLE</a></li>
-                        <li><a href="connexion.php">SE CONNECTER</a></li>
-                        <li><a href="inscription.php">S'INSCRIRE</a></li>
-                        <li><a href="../Backoffice/login.php" class="admin-btn">ESPACE ADMIN</a></li>
+                        <li><a href="submit-article.php">✍️ ÉCRIRE</a></li>
+                        <li><a href="connexion.php">CONNEXION</a></li>
+                        <li><a href="inscription.php">INSCRIPTION</a></li>
+                        <!-- BOUTON MUSÉE GAMING AJOUTÉ ICI -->
+                        <li><a href="../../../../gaming_museum/view/frontoffice/index.php" class="museum-btn">🎮 MUSÉE GAMING</a></li>
+                        <li><a href="../Backoffice/login.php" class="admin-btn">ADMIN</a></li>
                     <?php endif; ?>
                 </ul>
                 <div class="mobile-menu">
@@ -849,6 +889,8 @@ unset($_SESSION['error_message']);
                         <li><a href="blog.php">Articles</a></li>
                         <li><a href="about.php">À propos</a></li>
                         <li><a href="submit-article.php">Écrire un article</a></li>
+                        <!-- LIEN MUSÉE DANS LE FOOTER -->
+                        <li><a href="../../../../gaming_museum/view/frontoffice/index.php" style="color: var(--museum-orange);">🎮 Musée Gaming</a></li>
                         <?php if (isset($_SESSION['user_id'])): ?>
                             <li><a href="mes-articles.php">Mes articles</a></li>
                             <li><a href="deconnexion.php">Déconnexion</a></li>
