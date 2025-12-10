@@ -1,7 +1,94 @@
 // =============================================
 // SCRIPT PRINCIPAL - PROJET COMMUNAUTAIRE
 // =============================================
+// NOTE: Le bloc original des fonctionnalités IA a été temporairement commenté
+// car il contenait des définitions hors classe provoquant une erreur de
+// syntaxe et empêchait le chargement du reste du script. Les pages qui
+// utilisent l'assistant IA incluent déjà des handlers inline depuis le
+// contrôleur (`PublicationController::addAIAssistantToForm`) — ces handlers
+// restent actifs. Nous garderons ce bloc désactivé pour éviter les conflits
+// et corrigerons / refactorerons proprement ultérieurement si besoin.
 
+/*
+    // Bloc IA désactivé volontairement (voir commentaire ci-dessus)
+*/
+// Compatibility patch early: si une instance / prototype `CommunityApp` existe
+// (ancienne version chargée avant cette mise à jour), rediriger le nom
+// legacy `setupFormSubmissions` vers `setupFormHandling` si disponible.
+try {
+    if (typeof window !== 'undefined' && typeof window.CommunityApp !== 'undefined' && window.CommunityApp.prototype) {
+        if (typeof window.CommunityApp.prototype.setupFormSubmissions !== 'function' &&
+            typeof window.CommunityApp.prototype.setupFormHandling === 'function') {
+            window.CommunityApp.prototype.setupFormSubmissions = window.CommunityApp.prototype.setupFormHandling;
+            console.info('Compat early: setupFormSubmissions() redirigé vers setupFormHandling()');
+        }
+    }
+} catch (e) {
+    // Ne pas bloquer le chargement si l'accès échoue
+}
+
+// Poller et patcher le prototype si nécessaire : remplace setupEventListeners
+// par une enveloppe qui capture les erreurs et applique une fallback safe.
+(function patchSetupEventListeners() {
+    let attempts = 0;
+    const maxAttempts = 20;
+    const interval = 100; // ms
+
+    const tryPatch = () => {
+        attempts++;
+        try {
+            if (window.CommunityApp && window.CommunityApp.prototype && !window.CommunityApp.prototype.__patched_setupEventListeners) {
+                const proto = window.CommunityApp.prototype;
+                if (typeof proto.setupEventListeners === 'function') {
+                    const orig = proto.setupEventListeners;
+                    proto.setupEventListeners = function(...args) {
+                        try {
+                            return orig.apply(this, args);
+                        } catch (err) {
+                            console.warn('Patched wrapper caught error in setupEventListeners:', err);
+                            // essayer d'appeler les sous-méthodes de manière safe
+                            try {
+                                if (typeof this.setupMobileNavigation === 'function') this.setupMobileNavigation();
+                                if (typeof this.setupActionButtons === 'function') this.setupActionButtons();
+                                if (typeof this.setupCardInteractions === 'function') this.setupCardInteractions();
+                                // Form handling fallback
+                                if (typeof this.setupFormHandling === 'function') {
+                                    this.setupFormHandling();
+                                } else if (typeof this.setupFormSubmissions === 'function') {
+                                    this.setupFormSubmissions();
+                                }
+                                if (typeof this.setupModalHandlers === 'function') this.setupModalHandlers();
+                            } catch (e2) {
+                                console.error('Fallback setupEventListeners also failed:', e2);
+                            }
+                        }
+                    };
+                    proto.__patched_setupEventListeners = true;
+                    console.info('Prototype CommunityApp.setupEventListeners patched (compat)');
+                }
+            }
+        } catch (e) {
+            // ignore
+        }
+
+        if (!window.CommunityApp || !window.CommunityApp.prototype || !window.CommunityApp.prototype.__patched_setupEventListeners) {
+            if (attempts < maxAttempts) {
+                setTimeout(tryPatch, interval);
+            } else {
+                console.warn('Unable to patch CommunityApp.setupEventListeners after multiple attempts');
+            }
+        }
+    };
+
+    tryPatch();
+})();
+// Guard global rapide : si le script a déjà été chargé, on stoppe l'exécution
+if (window.__communityAppScriptLoaded) {
+    console.warn('Script frontoffice déjà chargé - exécution ignorée');
+} else {
+    window.__communityAppScriptLoaded = true;
+
+    if (typeof window.CommunityApp === 'undefined') {
 class CommunityApp {
     constructor() {
         this.init();
@@ -13,6 +100,7 @@ class CommunityApp {
         this.setupFormHandling();
         this.setupUIInteractions();
         this.setupScrollEffects();
+        this.initAIAssistant();
     }
 
     // =============================================
@@ -29,8 +117,14 @@ class CommunityApp {
         // Interactions des cartes
         this.setupCardInteractions();
         
-        // Gestion des formulaires
-        this.setupFormSubmissions();
+        // Gestion des formulaires (compatibilité avec anciennes versions)
+        if (this.safeCall('setupFormHandling')) {
+            // méthode moderne appelée
+        } else if (this.safeCall('setupFormSubmissions')) {
+            // fallback legacy
+        } else {
+            console.warn('Aucune méthode de gestion des formulaires trouvée');
+        }
         
         // Modal interactions
         this.setupModalHandlers();
@@ -660,6 +754,16 @@ class CommunityApp {
         this.setupScrollSpy();
     }
 
+    // Initialisation de l'assistant IA (stub sûr)
+    initAIAssistant() {
+        if (typeof this.setupAIAssistant === 'function') {
+            try {
+                this.setupAIAssistant();
+            } catch (e) {
+                console.warn("Erreur lors de l'initialisation de l'assistant IA:", e);
+            }
+        }
+    }
     setupParallaxEffects() {
         const parallaxElements = document.querySelectorAll('[data-parallax]');
         
@@ -784,6 +888,20 @@ class CommunityApp {
         }
     }
 
+    // Safe invoker: vérifie que la méthode existe et est callable avant d'appeler.
+    // Retourne true si la méthode a été appelée, false sinon.
+    safeCall(methodName, ...args) {
+        try {
+            const fn = this[methodName];
+            if (typeof fn === 'function') {
+                fn.apply(this, args);
+                return true;
+            }
+        } catch (e) {
+            console.warn('Erreur lors de l\'appel de ' + methodName + ':', e);
+        }
+        return false;
+    }
     setupContentSharing() {
         document.addEventListener('click', (e) => {
             if (e.target.closest('.share-btn')) {
@@ -967,7 +1085,29 @@ class CommunityApp {
 
     static init() {
         document.addEventListener('DOMContentLoaded', () => {
-            window.communityApp = new CommunityApp();
+            // Tentative robuste d'initialisation : essayer plusieurs fois
+            // pour laisser le temps à d'autres scripts (cache/anciennes versions)
+            // de se charger/terminer et éviter une exception non captée.
+            let attempts = 0;
+            const maxAttempts = 6;
+
+            const tryInit = () => {
+                if (window.communityApp) return; // déjà initialisé
+                try {
+                    window.communityApp = new CommunityApp();
+                    console.info('CommunityApp initialisé avec succès');
+                } catch (err) {
+                    attempts++;
+                    console.warn('Échec initialisation CommunityApp (attempt ' + attempts + '):', err);
+                    if (attempts < maxAttempts) {
+                        setTimeout(tryInit, 300);
+                    } else {
+                        console.error('Impossible d\'initialiser CommunityApp après ' + attempts + ' tentatives');
+                    }
+                }
+            };
+
+            tryInit();
         });
     }
 }
@@ -979,3 +1119,25 @@ CommunityApp.init();
 window.CommunityApp = CommunityApp;
 
 console.log('Script CommunityApp chargé avec succès');
+
+} else {
+    console.warn('CommunityApp déjà défini - initialisation ignorée');
+}
+
+// Backwards compatibility: si une instance CommunityApp existante utilise l'ancien
+// nom de méthode `setupFormSubmissions`, patcher le prototype pour rediriger
+// vers `setupFormHandling` si disponible. Cela évite des TypeError sur des
+// versions mixtes du script (cache / ancien code).
+try {
+    if (typeof window.CommunityApp !== 'undefined' && window.CommunityApp.prototype) {
+        if (typeof window.CommunityApp.prototype.setupFormSubmissions !== 'function' &&
+            typeof window.CommunityApp.prototype.setupFormHandling === 'function') {
+            window.CommunityApp.prototype.setupFormSubmissions = window.CommunityApp.prototype.setupFormHandling;
+            console.info('Compat: setupFormSubmissions() redirigé vers setupFormHandling()');
+        }
+    }
+} catch (e) {
+    console.warn('Erreur lors du patch de compatibilité:', e);
+}
+    
+} // end global guard wrapper

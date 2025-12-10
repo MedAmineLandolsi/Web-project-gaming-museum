@@ -34,7 +34,6 @@ if ($baseUrl === '') {
     ?>
     <!-- DEBUG: BASE_URL=<?php echo $baseUrl; ?> CSS_URL=<?php echo $cssUrl . '?v=' . $cssVer; ?> -->
     <link href="<?php echo $cssUrl . '?v=' . $cssVer; ?>" rel="stylesheet">
-    <script src="<?php echo $jsUrl . '?v=' . $cssVer; ?>"></script>
     <?php
     // Fallback inline CSS: si le fichier existe sur le disque mais ne peut
     // pas être chargé par le navigateur (problème de rewrite ou headers),
@@ -235,7 +234,11 @@ if ($baseUrl === '') {
     </button>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="<?php echo $baseUrl; ?>/view/frontoffice/script.js"></script>
+    <?php
+    $jsPathLocal = __DIR__ . '/script.js';
+    $jsVer = file_exists($jsPathLocal) ? filemtime($jsPathLocal) : time();
+    ?>
+    <script src="<?php echo $baseUrl; ?>/view/frontoffice/script.js?v=<?php echo $jsVer; ?>"></script>
     
     <script>
     // DÉSACTIVER COMPLÈTEMENT LA VALIDATION HTML5

@@ -2,7 +2,16 @@
 session_start();
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
-
+if (isset($_GET['debug'])) {
+    echo "<pre style='background: #f0f0f0; padding: 10px; margin: 10px;'>";
+    echo "=== DEBUG INFORMATION ===\n";
+    echo "REQUEST_URI: " . $_SERVER['REQUEST_URI'] . "\n";
+    echo "SCRIPT_NAME: " . $_SERVER['SCRIPT_NAME'] . "\n";
+    echo "BASE_URL: " . (defined('BASE_URL') ? BASE_URL : 'non défini') . "\n";
+    echo "Path calculé: " . $path . "\n";
+    echo "=======================\n";
+    echo "</pre>";
+}
 // === SIMULATION D'UTILISATEUR CONNECTÉ ===
 if (!isset($_SESSION['user_id'])) {
     // Assurez-vous que cet ID correspond à un auteur de publication existant
@@ -240,6 +249,14 @@ switch ($path) {
         $communauteController->indexFront();
         break;
 
+    // === ROUTES ASSISTANT IA ===
+    case '/publications/ai-assistant':
+        $publicationController->showAIAssistant();
+        break;
+        
+    case '/ai-assistant/handle':
+        $publicationController->handleAIAssistant();
+        break;
     // === ROUTES FRONT OFFICE ===
     
     // Membres Front

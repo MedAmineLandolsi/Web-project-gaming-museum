@@ -1,4 +1,10 @@
 <?php
+// Ensure PHP warnings/errors are not printed into HTML responses in development
+// to avoid injecting HTML into asset URLs. Use logging instead.
+@ini_set('display_errors', '0');
+@ini_set('display_startup_errors', '0');
+error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
+
 class Database {
     // Use 127.0.0.1 to force TCP (helps on Windows/XAMPP where 'localhost' can use sockets)
     private $host = '127.0.0.1';
@@ -300,6 +306,22 @@ class Database {
         } catch(PDOException $e) {
             throw new Exception("Erreur lors de l'insertion des données: " . $e->getMessage());
         }
+    }
+}
+
+// Configuration de l'API Gemini (version simplifiée)
+class GeminiConfig {
+    private static $instance = null;
+    
+    public static function getInstance() {
+        if (self::$instance === null) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+    
+    public function isConfigured() {
+        return true; // Toujours disponible en mode simulation
     }
 }
 ?>

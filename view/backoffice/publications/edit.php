@@ -6,7 +6,12 @@ $communautes = $communautes_result->fetchAll(PDO::FETCH_ASSOC);
 // Préparer la valeur des images pour le champ (string séparée par des virgules)
 $imagesValue = '';
 if (isset($_SESSION['old_input']['images'])) {
-    $imagesValue = $_SESSION['old_input']['images'];
+    $raw = $_SESSION['old_input']['images'];
+    if (is_array($raw)) {
+        $imagesValue = implode(', ', $raw);
+    } else {
+        $imagesValue = $raw;
+    }
 } else {
     $images = $this->publicationModel->images ?? [];
     if (is_array($images)) {

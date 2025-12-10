@@ -1,8 +1,24 @@
 <?php
 $communaute_info = $communaute_info ?? null;
 ?>
-
-<!-- Debug messages removed -->
+<?php if (isset($_SESSION['debug_publications_count'])): ?>
+    <div class="container mt-3">
+        <div class="alert alert-info">Debug: publications récupérées = <?php echo (int) $_SESSION['debug_publications_count']; ?></div>
+    </div>
+    <?php unset($_SESSION['debug_publications_count']); ?>
+<?php endif; ?>
+<?php if (isset($_SESSION['debug_publications_count_fallback'])): ?>
+    <div class="container">
+        <div class="alert alert-secondary">Debug fallback count: <?php echo (int) $_SESSION['debug_publications_count_fallback']; ?></div>
+    </div>
+    <?php unset($_SESSION['debug_publications_count_fallback']); ?>
+<?php endif; ?>
+<?php if (isset($_SESSION['debug_publications_sample_ids'])): ?>
+    <div class="container">
+        <div class="alert alert-light">Debug sample IDs: <?php echo htmlspecialchars(implode(',', $_SESSION['debug_publications_sample_ids'])); ?></div>
+    </div>
+    <?php unset($_SESSION['debug_publications_sample_ids']); ?>
+<?php endif; ?>
 
 <div class="row">
     <div class="col-12">

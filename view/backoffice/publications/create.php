@@ -1,6 +1,16 @@
 <?php
 $communautes_result = $this->communauteModel->read();
 $communautes = $communautes_result->fetchAll(PDO::FETCH_ASSOC);
+// Préparer la valeur des images (string) pour éviter les warnings si c'est un tableau
+$imagesValue = '';
+if (isset($_SESSION['old_input']['images'])) {
+    $raw = $_SESSION['old_input']['images'];
+    if (is_array($raw)) {
+        $imagesValue = implode(', ', $raw);
+    } else {
+        $imagesValue = $raw;
+    }
+}
 ?>
 
 <div class="card">
@@ -35,7 +45,7 @@ $communautes = $communautes_result->fetchAll(PDO::FETCH_ASSOC);
             <div class="mb-4">
                 <label for="images" class="form-label">Images (URLs séparées par des virgules)</label>
                 <textarea class="form-control" id="images" name="images" rows="3" 
-                          placeholder="https://exemple.com/image1.jpg, https://exemple.com/image2.jpg"><?php echo isset($_SESSION['old_input']['images']) ? htmlspecialchars($_SESSION['old_input']['images']) : ''; ?></textarea>
+                          placeholder="https://exemple.com/image1.jpg, https://exemple.com/image2.jpg"><?php echo htmlspecialchars($imagesValue); ?></textarea>
                 <div class="form-text">
                     <i class="fas fa-info-circle me-1"></i>
                     Entrez les URLs des images séparées par des virgules. Maximum 4 images recommandées.

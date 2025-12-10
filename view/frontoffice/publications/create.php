@@ -1,5 +1,13 @@
+<?php
+// Récupérer l'assistant IA depuis le contrôleur
+$aiAssistant = $this->addAIAssistantToForm();
+?>
+
 <div class="row justify-content-center">
     <div class="col-lg-8">
+        <!-- Afficher l'assistant IA -->
+        <?php echo $aiAssistant; ?>
+        
         <div class="community-card p-4">
             <div class="text-center mb-4">
                 <h1 class="h2">Partager une publication</h1>
