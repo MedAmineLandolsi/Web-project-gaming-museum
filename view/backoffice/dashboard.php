@@ -42,7 +42,7 @@ $gameCount = $gamesC->countGames();
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="../../crud-commande/view/backoffice/commande.php">
+                    <a href="commande.php">
                         <span class="nav-icon">🛒</span>
                         <span class="nav-text">COMMANDES</span>
                         <span class="nav-count">287</span>

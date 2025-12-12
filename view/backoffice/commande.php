@@ -1,15 +1,17 @@
 <?php
-include '../../controller/JeuxController.php';
-$gamesC = new JeuxController();
-$list = $gamesC->listjeux();
-$gameCount = $gamesC->countGames();
+require "../../../Crud-Jeux/controller/JeuxController.php";
+require "../../controller/CommandeController.php";
+$controller = new CommandeController();
+$list = $controller->listCommandes();
 ?>
+
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Add Game</title>
+    <title>Commandes Dashboard</title>
     <link rel="stylesheet" href="admin-style.css">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
 </head>
@@ -28,20 +30,20 @@ $gameCount = $gamesC->countGames();
         <nav class="sidebar-nav">
             <ul class="nav-list">
                 <li class="nav-item">
-                    <a href="dashboard.php">
+                    <a href="../../../Crud-Jeux/view/backoffice/dashboard.php">
                         <span class="nav-icon">📊</span>
                         <span class="nav-text">DASHBOARD</span>
                     </a>
                 </li>
-                <li class="nav-item active">
-                    <a href="addgame.php">
+                <li class="nav-item">
+                    <a href="../../../Crud-Jeux/view/backoffice/addgame.php">
                         <span class="nav-icon">🎮</span>
                         <span class="nav-text">JEUX</span>
-                        <span class="nav-count"><?= $gameCount ?></span>
+                        <span class="nav-count"></span>
 
                     </a>
                 </li>
-                <li class="nav-item">
+                <li class="nav-item active">
                     <a href="commande.php">
                         <span class="nav-icon">🛒</span>
                         <span class="nav-text">COMMANDES</span>
@@ -113,23 +115,23 @@ $gameCount = $gamesC->countGames();
                     <span></span>
                     <span></span>
                 </button>
-                <h1 class="page-title">◄ GAMES DASHBOARD ►</h1>
+                <h1 class="page-title">◄ COMMANDE DASHBOARD ►</h1>
             </div>
             
         </header>
          <section class="quick-actions">
             
-            <a href="adddgame.php" style="text-decoration: none;"><div class="action-grid">
+            <a href="addcommande.php" style="text-decoration: none;"><div class="action-grid">
                 <button class="action-btn action-primary">
                     <span class="action-icon">➕</span>
-                    <span class="action-text">AJOUTER UN JEU</span>
+                    <span class="action-text">AJOUTER UNE COMMANDE</span>
                 </button>
                 
             </div></a>
         </section>
          <section class="dashboard-card recent-games">
                 <div class="card-header">
-                    <h3 class="card-title">◄ COLLECTION DES JEUX  ►</h3>
+                    <h3 class="card-title">◄ LES COMMANDES  ►</h3>
                     
                 </div>
                 <div class="card-content">
@@ -138,51 +140,54 @@ $gameCount = $gamesC->countGames();
     <thead>
         <tr>
             <th>ID</th>
-            <th>NOM DU JEU</th>
-            <th>CATEGORIE</th>
-            <th>PRIX</th>
+            <th>Jeu</th>
+            <th>Quantité</th>
+            <th>Total (€)</th>
+            <th>Date</th>
             <th>ACTIONS</th>
         </tr>
     </thead>
 
     <tbody>
-    <?php if (!empty($list)) { 
-            foreach ($list as $game) { 
-    ?>  
+    <?php foreach ($list as $cmd) { ?>
         <tr>
-            <td><?= htmlspecialchars($game['id']); ?></td>
+            <td><?= $cmd['ID']; ?></td>
 
             <td class="game-name">
                 <span class="game-icon">🎮</span>
-                <?= htmlspecialchars($game['nom']); ?>
+                <?= htmlspecialchars($cmd['nom']); ?>
             </td>
 
             <td>
                 <span class="badge badge-console">
-                    <?= htmlspecialchars($game['categorie']); ?>
+                    <?= $cmd['quantity']; ?>
                 </span>
             </td>
 
             <td>
                 <span class="status status-active">
-                    <?= htmlspecialchars($game['prix']); ?>
+                    <?= $cmd['Total']; ?>
                 </span>
             </td>
-
             <td>
-                <a href="updategame.php?id=<?= $game['id']; ?>">
+                <span class="status status-active">
+                <?= $cmd['Date']; ?>
+                </span>
+            </td>
+            <td>
+                <a href="updatecmd.php?id=<?= $cmd['ID']; ?>">
                     <button class="icon-btn edit">✏️</button>
                 </a>
 
                 <a href="delete.php?id=<?= $game['id']; ?>"
-                   onclick="return confirm('Supprimer ce jeu ?');">
+                   onclick="return confirm('Supprimer cette commande ?');">
                     <button type="button" class="icon-btn delete">🗑️</button>
                 </a>
             </td>
         </tr>
     <?php 
         } 
-    } 
+    
     ?>
     </tbody>
 

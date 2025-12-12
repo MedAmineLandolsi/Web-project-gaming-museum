@@ -29,6 +29,13 @@ $list = $gamesC->listjeux($search, $sortBy, $order);
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
     <style>
+.pixel-placeholder img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 6px;
+}
+
 .game-card {
     position: relative; /* helps isolate hover */
 }
@@ -85,7 +92,7 @@ $list = $gamesC->listjeux($search, $sortBy, $order);
             </div>
             
             <div class="nav-right">
-                <a href="../../../Crud-Commande/view/frontoffice/cart.php" style="text-decoration: none;"><button class="btn-auth">
+                <a href="cart.php" style="text-decoration: none;"><button class="btn-auth">
                     <span class="btn-icon">🛒</span> 
                 </button></a>
             </div>
@@ -163,17 +170,28 @@ $list = $gamesC->listjeux($search, $sortBy, $order);
 
             <!-- IMAGE / PIXEL ART AREA -->
             <div class="game-image">
-                <div class="pixel-art">
-                    <div class="pixel-placeholder">
-                        <?= htmlspecialchars($game['nom']); ?>
-                    </div>
+    <div class="pixel-art">
+        
+        <div class="pixel-placeholder">
+            <?php if (!empty($game['image'])): ?>
+                <img 
+                    src="../../uploads/<?= htmlspecialchars($game['image']); ?>" 
+                    alt="<?= htmlspecialchars($game['nom']); ?>"
+                    class="game-img"
+                >
+            <?php else: ?>
+                <span>No Image</span>
+            <?php endif; ?>
+        </div>
 
-                    <div class="hover-overlay">
-                        <a href="gamedetails.php?id=<?= $game['id']; ?>"><button class="quick-view">Details</button></a>
-                    </div>
-                    
-                </div>
-            </div>
+        <div class="hover-overlay">
+            <a href="gamedetails.php?id=<?= $game['id']; ?>">
+                <button class="quick-view">Details</button>
+            </a>
+        </div>
+    </div>
+</div>
+
 
             <!-- INFO UNDER THE CARD (like your PAC-MAN example) -->
             <div class="game-info">

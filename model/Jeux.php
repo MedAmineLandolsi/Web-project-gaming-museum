@@ -7,17 +7,19 @@ class jeux{
     private ?float $prix;
     private ?int $stock;
     private ?string $categorie;
+    private ?string $image;
     
     
 
     // Constructor
-    public function __construct(?int $id, ?string $nom, ?string $description, ?float $prix,?int $stock, ?string $categorie = null) {
+    public function __construct(?int $id, ?string $nom, ?string $description, ?float $prix,?int $stock, ?string $categorie = null, ?string $image = null) {
         $this->id = $id;
         $this->nom = $nom;
         $this->description = $description;
         $this->prix = $prix;
         $this->stock = $stock;
         $this->categorie = $categorie;
+        $this->image = $image;
         
        
     }
@@ -73,6 +75,14 @@ class jeux{
 
     public function setcategorie(?string $categorie): void {
         $this->categorie = $categorie;
+    }
+
+    public function getImage(): ?string {
+        return $this->image;
+    }
+
+    public function setImage(?string $image): void {
+        $this->image = $image;
     }
    
 }

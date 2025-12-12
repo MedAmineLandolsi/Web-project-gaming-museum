@@ -1,5 +1,5 @@
 <?php
-include(__DIR__ . '/../config.php');
+require_once __DIR__ . '/../config.php';
 
 class JeuxController
 {
@@ -39,8 +39,8 @@ class JeuxController
   
     function addgame(jeux $game)
     {
-        $sql = "INSERT INTO jeux (nom, description, prix, stock, categorie) 
-            VALUES (:nom, :description, :prix, :stock, :categorie)";
+        $sql = "INSERT INTO jeux (nom, description, prix, stock, categorie, image) 
+            VALUES (:nom, :description, :prix, :stock, :categorie, :image)";
 
         $db = config::getConnexion();
 
@@ -52,6 +52,7 @@ class JeuxController
                 'prix'        => $game->getprix(),
                 'stock'       => $game->getstock(),      
                 'categorie'   => $game->getcategorie(),
+                'image'       => $game->getImage(),
         ]);
     } catch (Exception $e) {
         echo 'Error: ' . $e->getMessage();
@@ -145,19 +146,5 @@ class JeuxController
 
    
 
-    /*function showOffer($id)
-    {
-        $sql = "SELECT * from eventt where id = $id";
-        $db = config::getConnexion();
-        try {
-            $query = $db->prepare($sql);
-            $query->execute();
-
-            $offer = $query->fetch();
-            return $offer;
-        } catch (Exception $e) {
-            die('Error: ' . $e->getMessage());
-        }
- 
-    }*/
+    
 }

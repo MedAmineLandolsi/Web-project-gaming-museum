@@ -1,59 +1,23 @@
 <?php
+require "../../../Crud-Jeux/controller/JeuxController.php";
 
-include '../../controller/JeuxController.php';
-include '../../model/Jeux.php'; 
+require "../../controller/CommandeController.php";
+require "../../model/Commande.php";
 
-$error = "";
-$gameController = new JeuxController();
+$games = (new JeuxController())->listJeux();
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-    if (
-        isset($_POST["nom"], $_POST["description"], $_POST["prix"], $_POST["stock"], $_POST["categorie"]) &&
-        !empty($_POST["nom"]) &&
-        !empty($_POST["description"]) &&
-        !empty($_POST["prix"]) &&
-        !empty($_POST["stock"]) &&
-        !empty($_POST["categorie"])
-    ) {
-        
-        // Handle image upload
-        $imageName = null;
+    $cmd = new Commande(
+        $_POST['produit_id'],
+        $_POST['total'],
+        $_POST['quantity'],
+        date("Y-m-d")
+    );
 
-        if (isset($_FILES['image']) && $_FILES['image']['error'] === 0) {
-            $uploadDir = "../../uploads/";
-
-            if (!is_dir($uploadDir)) {
-                mkdir($uploadDir, 0777, true);
-            }
-
-            $imageName = uniqid() . "_" . basename($_FILES['image']['name']);
-            $imagePath = $uploadDir . $imageName;
-
-            move_uploaded_file($_FILES['image']['tmp_name'], $imagePath);
-        }
-
-        // Create game object
-        $game = new jeux(
-            null,
-            $_POST['nom'],
-            $_POST['description'],
-            floatval($_POST['prix']),
-            intval($_POST['stock']),
-            $_POST['categorie'],
-            $imageName  // <— Save image in database
-        );
-
-        // Add game
-        $gameController->addgame($game);
-
-        header('Location: addgame.php');
-        exit;
-    } else {
-        $error = "Tous les champs sont obligatoires.";
-    }
+    (new CommandeController())->addCommande($cmd);
+    header("Location: commande.php");
 }
-
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -63,13 +27,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <title>Add Game</title>
     <link rel="stylesheet" href="admin-style.css">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
-    <style>
-        .input-error {
-    border: 2px solid red !important;
-    background: #ffe6e6;
-}
-
-    </style>
 </head>
 <body>
     <aside class="sidebar">
@@ -86,22 +43,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <nav class="sidebar-nav">
             <ul class="nav-list">
                 <li class="nav-item active">
-                    <a href="adddgame.php">
+                    <a href="addcommande.php">
                         <span class="nav-icon">➕</span>
-                        <span class="nav-text">ADD GAME</span>
+                        <span class="nav-text">ADD COMMANDE</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="updategame.php">
+                    <a href="updatecmd.php">
                         <span class="nav-icon">✏️</span>
-                        <span class="nav-text">MODIFY GAME</span>
+                        <span class="nav-text">MODIFY COMMANDE</span>
                         
                     </a>
                 </li>
                 <li class="nav-item">
                     <a href="commande.php">
                         <span class="nav-icon">🗑️</span>
-                        <span class="nav-text">DELETE GAME</span>
+                        <span class="nav-text">DELETE COMMANDE</span>
                         
                     </a>
                 </li>
@@ -131,52 +88,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <span></span>
                     <span></span>
                 </button>
-                <h1 class="page-title">◄ ADD GAME ►</h1>
+                <h1 class="page-title">◄ COMMANDE ►</h1>
             </div>
             
         </header>
         <section class="dashboard-card recent-games">
     <div class="card-header">
-        <h3 class="card-title">◄ ADD GAME ►</h3>
+        <h3 class="card-title">◄ ADD COMMANDE ►</h3>
     </div>
 
     <div class="card-content">
-        <?php if (!empty($error)): ?>
-            <div class="error-message"><?= htmlspecialchars($error); ?></div>
-        <?php endif; ?>
-        <form method="POST" enctype="multipart/form-data">
+        
+        <form method="POST">
+            
             <table class="data-table vertical-form">
                 <tbody>
-
                     <tr>
-                        <th>NOM</th>
-                        <td><input type="text" name="nom" placeholder="Nom du jeu" class="search-input"></td>
+                        <th>GAME</th>
+                        <td><select name="produit_id" required>
+                                <?php foreach ($games as $g) { ?>
+                                    <option value="<?= $g['id']; ?>"><?= $g['nom']; ?></option>
+                                <?php } ?>
+                            </select></td>
+                    </tr>
+                    <tr>
+                        <th>Quantité</th>
+                        <td><input type="number" name="quantity" placeholder="Quantité" class="search-input"></td>
                     </tr>
 
                     <tr>
-                        <th>DESCRIPTION</th>
-                        <td><textarea name="description" placeholder="Description" class="search-input"></textarea></td>
+                        <th>Total</th>
+                        <td><input type="number" name="total" placeholder="total" class="search-input"></td>
                     </tr>
 
-                    <tr>
-                        <th>PRIX (€)</th>
-                        <td><input type="number" step="0.01" name="prix" placeholder="Prix" class="search-input"></td>
-                    </tr>
-
-                    <tr>
-                        <th>STOCK</th>
-                        <td><input type="number" name="stock" placeholder="Stock" class="search-input"></td>
-                    </tr>
-
-                    <tr>
-                        <th>CATEGORIE</th>
-                        <td><input type="text" name="categorie" placeholder="Catégorie" class="search-input"></td>
-                    </tr>
-                    <tr>
-    <th>IMAGE</th>
-    <td><input type="file" name="image" class="search-input"></td>
-</tr>
-
+                    
 
                     <th>
                         
@@ -184,7 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             
                             <div class="action-grid"><button type="submit" class="action-btn action-primary">
                                 <span class="action-icon">💾</span>
-                                <span class="action-text"> Enregistrer</span>
+                                <span class="action-text"> Valider</span>
                             </button>
                             </div>
                        
@@ -197,7 +142,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         <section class="quick-actions">
             
-            <a href="addgame.php" style="text-decoration: none;"><div class="action-grid">
+            <a href="commande.php" style="text-decoration: none;"><div class="action-grid">
                 <button class="action-btn action-primary">
                     <span class="action-icon">🔙</span>
                     <span class="action-text">RETOUR</span>
@@ -210,5 +155,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
     </main>
-    <script src="script.js"></script>
+
 </body>

@@ -423,7 +423,7 @@ session_start();
         <span class="btn-icon">📄</span> Télécharger en PDF
     </button>
 </a>
-                <a href="../../../Crud-Commande/view/frontoffice/add_to_cart.php?id=<?= $game['id']; ?>" style="text-decoration: none;">
+                <a href="add_to_cart.php?id=<?= $game['id']; ?>" style="text-decoration: none;">
                     <button class="btn-auth btn-primary">
                         <span class="btn-icon">🛒</span> Ajouter au panier
                     </button>

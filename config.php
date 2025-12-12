@@ -1,22 +1,22 @@
 <?php
+
+
 class config
-{   private static $pdo = null;
+{
+    private static $pdo = null;
+    
     public static function getConnexion()
     {
         if (!isset(self::$pdo)) {
-            $servername="localhost";
-            $username="root";
-            $password ="";
-            $dbname="crud_mvc_jeux";
             try {
-                self::$pdo = new PDO("mysql:host=$servername;dbname=$dbname",
-                        $username,
-                        $password
-                   
+                self::$pdo = new PDO(
+                    "mysql:host=localhost;dbname=crud_mvc_jeux;charset=utf8mb4",
+                    "root",
+                    ""
                 );
+                
                 self::$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
                 self::$pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-               
                
             } catch (Exception $e) {
                 die('Erreur: ' . $e->getMessage());
@@ -24,33 +24,14 @@ class config
         }
         return self::$pdo;
     }
-}
-config::getConnexion();
-class confige
-{   private static $pdo = null;
-    public static function getConnexion()
+    
+    // Alternative method for CRUD-COMMANDE compatibility
+    public static function connect()
     {
-        if (!isset(self::$pdo)) {
-            $servername="localhost";
-            $username="root";
-            $password ="";
-            $dbname="crud_mvc_jeux";
-            try {
-                self::$pdo = new PDO("mysql:host=$servername;dbname=$dbname",
-                        $username,
-                        $password
-                   
-                );
-                self::$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-                self::$pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-               
-               
-            } catch (Exception $e) {
-                die('Erreur: ' . $e->getMessage());
-            }
-        }
-        return self::$pdo;
+        return self::getConnexion();
     }
 }
-confige::getConnexion();
+
+// Optional: Auto-instantiate for backward compatibility
+// config::getConnexion();
 ?>
