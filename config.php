@@ -10,7 +10,7 @@ class config
         if (!isset(self::$pdo)) {
             try {
                 self::$pdo = new PDO(
-                    "mysql:host=localhost;dbname=crud_mvc_jeux;charset=utf8mb4",
+                    "mysql:host=localhost;dbname=gaming_museum;charset=utf8mb4",
                     "root",
                     ""
                 );

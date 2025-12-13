@@ -1,8 +1,38 @@
 <?php
-include '../../controller/JeuxController.php';
+// Only ONE session_start() at the beginning
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+require_once '../../config.php';
+require_once '../../controller/user_controller.php';
+require_once '../../controller/JeuxController.php';
+require_once '../../controller/CommandeController.php';
+
+$controller = new UserController();
+
+if (!$controller->isLoggedIn() || !$controller->isAdmin()) {
+    header('Location: ../frontoffice/login.php');
+    exit();
+}
+
+$currentUser = $controller->viewProfile($_SESSION['user_id']);
+$user = $currentUser['user'];
+
+$allUsers = $controller->getAllUsers();
 $gamesC = new JeuxController();
-$list = $gamesC->listjeux();
+$commandeC = new CommandeController();
+
 $gameCount = $gamesC->countGames();
+$recentGames = $gamesC->listjeux(null, null, null);
+$recentOrders = $commandeC->listCommandes();
+$stats = $commandeC->getDashboardStats();
+
+// Keep only first 5 games for display
+$recentGames = array_slice($recentGames, 0, 5);
+$recentOrders = array_slice($recentOrders, 0, 5);
+
+$current_page = 'dashboard.php';
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -12,9 +42,10 @@ $gameCount = $gamesC->countGames();
     <title>Admin Dashboard - Ludology Vault</title>
     <link rel="stylesheet" href="admin-style.css">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+    
 </head>
 <body>
-    <!-- Sidebar -->
+    <!-- SIDEBAR - Copy this to every page -->
     <aside class="sidebar">
         <div class="sidebar-header">
             <div class="admin-logo">
@@ -27,87 +58,63 @@ $gameCount = $gamesC->countGames();
         </div>
 
         <nav class="sidebar-nav">
-            <ul class="nav-list">
-                <li class="nav-item active">
-                    <a href="dashboard.php">
-                        <span class="nav-icon">📊</span>
-                        <span class="nav-text">DASHBOARD</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="addgame.php">
-                        <span class="nav-icon">🎮</span>
-                        <span class="nav-text">JEUX</span>
-                        <span class="nav-count"><?= $gameCount ?></span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="commande.php">
-                        <span class="nav-icon">🛒</span>
-                        <span class="nav-text">COMMANDES</span>
-                        <span class="nav-count">287</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#events">
-                        <span class="nav-icon">📅</span>
-                        <span class="nav-text">ÉVÉNEMENTS</span>
-                        <span class="nav-count">12</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#blog">
-                        <span class="nav-icon">📝</span>
-                        <span class="nav-text">BLOG</span>
-                        <span class="nav-count">45</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#users">
-                        <span class="nav-icon">👥</span>
-                        <span class="nav-text">UTILISATEURS</span>
-                        <span class="nav-count">1.2K</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#reclamations">
-                        <span class="nav-icon">📮</span>
-                        <span class="nav-text">RÉCLAMATIONS</span>
-                        <span class="nav-count alert">8</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#analytics">
-                        <span class="nav-icon">📈</span>
-                        <span class="nav-text">ANALYTICS</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#settings">
-                        <span class="nav-icon">⚙️</span>
-                        <span class="nav-text">PARAMÈTRES</span>
-                    </a>
-                </li>
-            </ul>
-        </nav>
+    <ul class="nav-list">
+        <li class="nav-item <?php echo $current_page == 'dashboard.php' ? 'active' : ''; ?>">
+            <a href="dashboard.php">
+                <span class="nav-icon">📊</span>
+                <span class="nav-text">DASHBOARD</span>
+            </a>
+        </li>
+        <li class="nav-item <?php echo in_array($current_page, ['addgame.php', 'adddgame.php', 'updategame.php']) ? 'active' : ''; ?>">
+            <a href="addgame.php">  <!-- CHANGED FROM games.php TO addgame.php -->
+                <span class="nav-icon">🎮</span>
+                <span class="nav-text">JEUX</span>
+            </a>
+        </li>
+        <li class="nav-item <?php echo in_array($current_page, ['commande.php', 'addcommande.php', 'updatecmd.php']) ? 'active' : ''; ?>">
+            <a href="commande.php">
+                <span class="nav-icon">🛒</span>
+                <span class="nav-text">COMMANDES</span>
+            </a>
+        </li>
+        <li class="nav-item <?php echo $current_page == 'users.php' ? 'active' : ''; ?>">
+            <a href="users.php">
+                <span class="nav-icon">👥</span>
+                <span class="nav-text">UTILISATEURS</span>
+            </a>
+        </li>
+        <li class="nav-item <?php echo $current_page == 'profile.php' ? 'active' : ''; ?>">
+            <a href="profile.php">
+                <span class="nav-icon">👤</span>
+                <span class="nav-text">PROFIL</span>
+            </a>
+        </li>
+    </ul>
+</nav>
 
         <div class="sidebar-footer">
             <div class="admin-profile">
-                <div class="admin-avatar">AD</div>
+                <div class="admin-avatar" style="position: relative; border-radius: 50%;">
+                    <?php if ($user['profile_picture_url'] && file_exists("../../uploads/" . $user['profile_picture_url'])): ?>
+                        <img src="../../uploads/<?php echo htmlspecialchars($user['profile_picture_url']); ?>" alt="Admin" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+                    <?php else: ?>
+                        <?php echo strtoupper(substr($user['username'], 0, 2)); ?>
+                    <?php endif; ?>
+                    <div class="admin-profile-indicator"></div>
+                </div>
                 <div class="admin-info">
-                    <span class="admin-name">Admin User</span>
+                    <span class="admin-name"><?php echo htmlspecialchars($user['username']); ?></span>
                     <span class="admin-role">Super Admin</span>
                 </div>
             </div>
-            <button class="btn-logout">
+            <button class="btn-logout" onclick="logout(); return false;">
                 <span>🚪</span> DÉCONNEXION
             </button>
         </div>
     </aside>
 
-    <!-- Main Content -->
     <main class="main-content">
-        <!-- Top Bar -->
+        <!-- TOP BAR - Copy this to every page -->
         <header class="top-bar">
             <div class="top-bar-left">
                 <button class="menu-toggle" id="menuToggle">
@@ -115,92 +122,52 @@ $gameCount = $gamesC->countGames();
                     <span></span>
                     <span></span>
                 </button>
-                <h1 class="page-title">◄ DASHBOARD PRINCIPAL ►</h1>
+                <h1 class="page-title" id="pageTitle">◄ DASHBOARD PRINCIPAL ►</h1>
             </div>
             <div class="top-bar-right">
                 <div class="search-box">
-                    <input type="text" placeholder="Rechercher..." class="search-input">
+                    <input type="text" placeholder="Rechercher..." class="search-input" id="searchInput">
                     <button class="search-btn">🔍</button>
                 </div>
-                <button class="notification-btn">
-                    <span class="notif-icon">🔔</span>
-                    <span class="notif-badge">5</span>
-                </button>
-                <a href="../frontoffice/index.php" style="text-decoration: none;"><button class="btn-view-site">VOIR LE SITE →</button></a>
+                <button class="btn-view-site" onclick="window.location.href='../frontoffice/index.php'">VOIR LE SITE →</button>
             </div>
         </header>
 
-        <!-- Stats Overview -->
+        <!-- PAGE CONTENT - This changes per page -->
         <section class="stats-overview">
             <div class="stat-card stat-primary">
                 <div class="stat-icon">🎮</div>
                 <div class="stat-content">
                     <span class="stat-label">TOTAL JEUX</span>
                     <span class="stat-value" data-target="<?= $gameCount ?>">0</span>
-                    <span class="stat-change positive"><?= $gameCount ?> ce mois</span>
-                </div>
-                <div class="stat-graph">
-                    <div class="mini-bars">
-                        <span style="height: 40%"></span>
-                        <span style="height: 60%"></span>
-                        <span style="height: 45%"></span>
-                        <span style="height: 80%"></span>
-                        <span style="height: 100%"></span>
-                    </div>
+                    <span class="stat-change positive"><?= $gameCount ?> en stock</span>
                 </div>
             </div>
 
             <div class="stat-card stat-secondary">
                 <div class="stat-icon">👥</div>
                 <div class="stat-content">
-                    <span class="stat-label">VISITEURS ACTIFS</span>
-                    <span class="stat-value" data-target="1247">0</span>
-                    <span class="stat-change positive">+23% cette semaine</span>
-                </div>
-                <div class="stat-graph">
-                    <div class="mini-bars">
-                        <span style="height: 50%"></span>
-                        <span style="height: 70%"></span>
-                        <span style="height: 60%"></span>
-                        <span style="height: 90%"></span>
-                        <span style="height: 100%"></span>
-                    </div>
+                    <span class="stat-label">UTILISATEURS</span>
+                    <span class="stat-value" data-target="<?= count($allUsers) ?>">0</span>
+                    <span class="stat-change positive"><?= count($allUsers) ?> inscrits</span>
                 </div>
             </div>
 
             <div class="stat-card stat-accent">
-                <div class="stat-icon">📅</div>
+                <div class="stat-icon">🛒</div>
                 <div class="stat-content">
-                    <span class="stat-label">ÉVÉNEMENTS</span>
-                    <span class="stat-value" data-target="12">0</span>
-                    <span class="stat-change">4 à venir</span>
-                </div>
-                <div class="stat-graph">
-                    <div class="mini-bars">
-                        <span style="height: 30%"></span>
-                        <span style="height: 50%"></span>
-                        <span style="height: 70%"></span>
-                        <span style="height: 60%"></span>
-                        <span style="height: 80%"></span>
-                    </div>
+                    <span class="stat-label">COMMANDES</span>
+                    <span class="stat-value" data-target="<?= $stats['total_orders'] ?? 0 ?>">0</span>
+                    <span class="stat-change"><?= $stats['total_orders'] ?? 0 ?> total</span>
                 </div>
             </div>
 
             <div class="stat-card stat-warning">
-                <div class="stat-icon">📮</div>
+                <div class="stat-icon">💰</div>
                 <div class="stat-content">
-                    <span class="stat-label">RÉCLAMATIONS</span>
-                    <span class="stat-value" data-target="8">0</span>
-                    <span class="stat-change negative">En attente</span>
-                </div>
-                <div class="stat-graph">
-                    <div class="mini-bars">
-                        <span style="height: 60%"></span>
-                        <span style="height: 40%"></span>
-                        <span style="height: 70%"></span>
-                        <span style="height: 50%"></span>
-                        <span style="height: 60%"></span>
-                    </div>
+                    <span class="stat-label">REVENU</span>
+                    <span class="stat-value" data-target="<?= $stats['total_revenue'] ?? 0 ?>">0</span>
+                    <span class="stat-change"><?= $stats['total_revenue'] ?? 0 ?> €</span>
                 </div>
             </div>
         </section>
@@ -209,22 +176,22 @@ $gameCount = $gamesC->countGames();
         <section class="quick-actions">
             <h2 class="section-title">◄ ACTIONS RAPIDES ►</h2>
             <div class="action-grid">
-                <button class="action-btn action-primary">
-                    <span class="action-icon"><a href="addgame.php" style="text-decoration: none;">➕</a></span>
-                    <span class="action-text"><a href="addgame.php" style="text-decoration: none;">AJOUTER UN JEU</a></span>
-                </button>
-                <button class="action-btn action-secondary">
-                    <span class="action-icon">📅</span>
-                    <span class="action-text">CRÉER ÉVÉNEMENT</span>
-                </button>
-                <button class="action-btn action-accent">
-                    <span class="action-icon">✍️</span>
-                    <span class="action-text">NOUVEL ARTICLE</span>
-                </button>
-                <button class="action-btn action-warning">
-                    <span class="action-icon">👤</span>
-                    <span class="action-text">AJOUTER ADMIN</span>
-                </button>
+                <a href="addgame.php" class="action-btn action-primary">
+                    <span class="action-icon">➕</span>
+                    <span class="action-text">AJOUTER UN JEU</span>
+                </a>
+                <a href="addcommande.php" class="action-btn action-secondary">
+                    <span class="action-icon">🛒</span>
+                    <span class="action-text">AJOUTER COMMANDE</span>
+                </a>
+                <a href="games.php" class="action-btn action-accent">
+                    <span class="action-icon">🎮</span>
+                    <span class="action-text">GÉRER JEUX</span>
+                </a>
+                <a href="users.php" class="action-btn action-warning">
+                    <span class="action-icon">👥</span>
+                    <span class="action-text">GÉRER UTILISATEURS</span>
+                </a>
             </div>
         </section>
 
@@ -233,229 +200,176 @@ $gameCount = $gamesC->countGames();
             <!-- Recent Games -->
             <section class="dashboard-card recent-games">
                 <div class="card-header">
-                    <h3 class="card-title">◄ COLLECTION DES JEUX  ►</h3>
-                    <a href="addgame.php"><button class="btn-view-all-small">VOIR TOUT</button></a>
-                    
+                    <h3 class="card-title">◄ JEUX RÉCENTS ►</h3>
+                    <a href="games.php"><button class="btn-view-all-small">VOIR TOUT</button></a>
                 </div>
                 <div class="card-content">
                     <table class="data-table">
-
-    <thead>
-        <tr>
-            <th>ID</th>
-            <th>NOM DU JEU</th>
-            <th>CATEGORIE</th>
-            <th>PRIX</th>
-            <th>ACTIONS</th>
-        </tr>
-    </thead>
-
-    <tbody>
-    <?php if (!empty($list)) { 
-            $counter = 0;
-            foreach ($list as $game) { 
-                if ($counter >= 5) break;
-    ?>  
-        <tr>
-            <td><?= htmlspecialchars($game['id']); ?></td>
-
-            <td class="game-name">
-                <span class="game-icon">🎮</span>
-                <?= htmlspecialchars($game['nom']); ?>
-            </td>
-
-            <td>
-                <span class="badge badge-console">
-                    <?= htmlspecialchars($game['categorie']); ?>
-                </span>
-            </td>
-
-            <td>
-                <span class="status status-active">
-                    <?= htmlspecialchars($game['prix']); ?>
-                </span>
-            </td>
-
-            <td>
-                <a href="updategame.php?id=<?= $game['id']; ?>">
-                    <button class="icon-btn edit">✏️</button>
-                </a>
-
-                <a href="delete.php?id=<?= $game['id']; ?>"
-                   onclick="return confirm('Supprimer ce jeu ?');">
-                    <button type="button" class="icon-btn delete">🗑️</button>
-                </a>
-            </td>
-        </tr>
-    <?php 
-        $counter++;
-        } 
-    } 
-    ?>
-    </tbody>
-
-</table>
-
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>NOM</th>
+                                <th>CATÉGORIE</th>
+                                <th>PRIX</th>
+                                <th>ACTIONS</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($recentGames as $game): ?>
+                            <tr>
+                                <td>#<?= $game['id'] ?></td>
+                                <td><?= htmlspecialchars($game['nom']) ?></td>
+                                <td><?= htmlspecialchars($game['categorie']) ?></td>
+                                <td><?= $game['prix'] ?> €</td>
+                                <td>
+                                    <a href="updategame.php?id=<?= $game['id'] ?>">
+                                        <button class="icon-btn edit">✏️</button>
+                                    </a>
+                                    <a href="delete.php?type=game&id=<?= $game['id'] ?>" onclick="return confirm('Supprimer ce jeu?')">
+                                        <button class="icon-btn delete">🗑️</button>
+                                    </a>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
                 </div>
             </section>
 
-            <!-- Activity Timeline -->
-            <section class="dashboard-card activity-timeline">
+            <!-- Recent Orders -->
+            <section class="dashboard-card recent-orders">
                 <div class="card-header">
-                    <h3 class="card-title">◄ ACTIVITÉ RÉCENTE ►</h3>
+                    <h3 class="card-title">◄ COMMANDES RÉCENTES ►</h3>
+                    <a href="commande.php"><button class="btn-view-all-small">VOIR TOUT</button></a>
                 </div>
                 <div class="card-content">
-                    <div class="timeline">
-                        <div class="timeline-item">
-                            <div class="timeline-marker primary"></div>
-                            <div class="timeline-content">
-                                <span class="timeline-time">Il y a 5 min</span>
-                                <p class="timeline-text">Nouveau jeu ajouté: <strong>Sonic 2</strong></p>
-                            </div>
-                        </div>
-                        <div class="timeline-item">
-                            <div class="timeline-marker secondary"></div>
-                            <div class="timeline-content">
-                                <span class="timeline-time">Il y a 23 min</span>
-                                <p class="timeline-text">Événement créé: <strong>Tournoi Retro</strong></p>
-                            </div>
-                        </div>
-                        <div class="timeline-item">
-                            <div class="timeline-marker accent"></div>
-                            <div class="timeline-content">
-                                <span class="timeline-time">Il y a 1h</span>
-                                <p class="timeline-text">Article publié: <strong>Histoire Nintendo</strong></p>
-                            </div>
-                        </div>
-                        <div class="timeline-item">
-                            <div class="timeline-marker warning"></div>
-                            <div class="timeline-content">
-                                <span class="timeline-time">Il y a 2h</span>
-                                <p class="timeline-text">Réclamation reçue: <strong>#1024</strong></p>
-                            </div>
-                        </div>
-                        <div class="timeline-item">
-                            <div class="timeline-marker primary"></div>
-                            <div class="timeline-content">
-                                <span class="timeline-time">Il y a 3h</span>
-                                <p class="timeline-text">127 nouveaux visiteurs aujourd'hui</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Upcoming Events -->
-            <section class="dashboard-card upcoming-events">
-                <div class="card-header">
-                    <h3 class="card-title">◄ ÉVÉNEMENTS PROCHAINS ►</h3>
-                    <button class="btn-view-all-small">VOIR TOUT</button>
-                </div>
-                <div class="card-content">
-                    <div class="event-list">
-                        <div class="event-item">
-                            <div class="event-date">
-                                <span class="event-day">25</span>
-                                <span class="event-month">NOV</span>
-                            </div>
-                            <div class="event-info">
-                                <h4>Tournoi Retro Arcade</h4>
-                                <p>⏰ 14:00 - 22:00</p>
-                                <span class="event-status active">Inscriptions ouvertes</span>
-                            </div>
-                            <button class="icon-btn edit">✏️</button>
-                        </div>
-                        <div class="event-item">
-                            <div class="event-date">
-                                <span class="event-day">02</span>
-                                <span class="event-month">DEC</span>
-                            </div>
-                            <div class="event-info">
-                                <h4>Exposition Nintendo</h4>
-                                <p>⏰ 10:00 - 18:00</p>
-                                <span class="event-status pending">En préparation</span>
-                            </div>
-                            <button class="icon-btn edit">✏️</button>
-                        </div>
-                        <div class="event-item">
-                            <div class="event-date">
-                                <span class="event-day">15</span>
-                                <span class="event-month">DEC</span>
-                            </div>
-                            <div class="event-info">
-                                <h4>Soirée Gaming Multiplayer</h4>
-                                <p>⏰ 18:00 - 00:00</p>
-                                <span class="event-status active">Confirmé</span>
-                            </div>
-                            <button class="icon-btn edit">✏️</button>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Popular Games Chart -->
-            <section class="dashboard-card popular-games">
-                <div class="card-header">
-                    <h3 class="card-title">◄ JEUX LES PLUS CONSULTÉS ►</h3>
-                </div>
-                <div class="card-content">
-                    <div class="chart-list">
-                        <div class="chart-item">
-                            <div class="chart-info">
-                                <span class="chart-rank">#1</span>
-                                <span class="chart-name">PAC-MAN</span>
-                            </div>
-                            <div class="chart-bar">
-                                <div class="chart-fill" style="width: 95%"></div>
-                                <span class="chart-value">3.2K vues</span>
-                            </div>
-                        </div>
-                        <div class="chart-item">
-                            <div class="chart-info">
-                                <span class="chart-rank">#2</span>
-                                <span class="chart-name">TETRIS</span>
-                            </div>
-                            <div class="chart-bar">
-                                <div class="chart-fill" style="width: 87%"></div>
-                                <span class="chart-value">2.9K vues</span>
-                            </div>
-                        </div>
-                        <div class="chart-item">
-                            <div class="chart-info">
-                                <span class="chart-rank">#3</span>
-                                <span class="chart-name">SPACE INVADERS</span>
-                            </div>
-                            <div class="chart-bar">
-                                <div class="chart-fill" style="width: 78%"></div>
-                                <span class="chart-value">2.6K vues</span>
-                            </div>
-                        </div>
-                        <div class="chart-item">
-                            <div class="chart-info">
-                                <span class="chart-rank">#4</span>
-                                <span class="chart-name">DONKEY KONG</span>
-                            </div>
-                            <div class="chart-bar">
-                                <div class="chart-fill" style="width: 65%"></div>
-                                <span class="chart-value">2.2K vues</span>
-                            </div>
-                        </div>
-                        <div class="chart-item">
-                            <div class="chart-info">
-                                <span class="chart-rank">#5</span>
-                                <span class="chart-name">MARIO KART</span>
-                            </div>
-                            <div class="chart-bar">
-                                <div class="chart-fill" style="width: 58%"></div>
-                                <span class="chart-value">1.9K vues</span>
-                            </div>
-                        </div>
-                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>UTILISATEUR</th>
+                                <th>MONTANT</th>
+                                <th>DATE</th>
+                                <th>STATUT</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($recentOrders as $order): ?>
+                            <tr>
+                                <td>#<?= $order['id'] ?></td>
+                                <td><?= $order['username'] ?? 'Anonyme' ?></td>
+                                <td><?= $order['Total'] ?> €</td>
+                                <td><?= date('d/m/Y', strtotime($order['Date'])) ?></td>
+                                <td><span class="status status-active"><?= $order['statut'] ?? 'En cours' ?></span></td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
                 </div>
             </section>
         </div>
     </main>
 
+    <script src="notification.js"></script>
     <script src="admin-script.js"></script>
+    <script>
+        function logout() {
+            if (confirm('Êtes-vous sûr de vouloir vous déconnecter?')) {
+                const formData = new FormData();
+                formData.append('action', 'logout');
+                
+                fetch('../../controller/user_controller.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    window.location.href = '../frontoffice/login.php';
+                })
+                .catch(error => {
+                    window.location.href = '../frontoffice/login.php';
+                });
+            }
+        }
+    </script>
+    <script>
+    // ULTIMATE NAVIGATION FIX - Add this to dashboard.php
+    (function() {
+        'use strict';
+        
+        console.log('=== ULTIMATE NAV FIX ACTIVATED ===');
+        
+        // Save original methods
+        const originalPreventDefault = Event.prototype.preventDefault;
+        const originalStopPropagation = Event.prototype.stopPropagation;
+        const originalAddEventListener = EventTarget.prototype.addEventListener;
+        
+        // Override preventDefault to ignore it for navigation links
+        Event.prototype.preventDefault = function() {
+            const target = this.target;
+            const isNavLink = target && 
+                             target.tagName === 'A' && 
+                             target.href && 
+                             !target.href.includes('javascript:');
+            
+            if (isNavLink) {
+                console.warn('BLOCKED preventDefault on navigation link:', target.href);
+                return; // Don't prevent default!
+            }
+            
+            return originalPreventDefault.call(this);
+        };
+        
+        // Override addEventListener to intercept click handlers
+        EventTarget.prototype.addEventListener = function(type, listener, options) {
+            if (type === 'click' && 
+                this.tagName === 'A' && 
+                this.href && 
+                !this.href.includes('javascript:')) {
+                
+                // Wrap the listener to ensure navigation works
+                const safeListener = function(e) {
+                    try {
+                        if (listener) {
+                            listener.call(this, e);
+                        }
+                    } catch (err) {
+                        console.error('Error in click handler:', err);
+                    }
+                    
+                    // Always navigate after the handler runs
+                    if (this.href && this.href !== window.location.href) {
+                        console.log('Navigating to:', this.href);
+                        window.location.href = this.href;
+                    }
+                };
+                
+                return originalAddEventListener.call(this, type, safeListener, options);
+            }
+            
+            return originalAddEventListener.call(this, type, listener, options);
+        };
+        
+        // Make sure all existing links work
+        document.addEventListener('DOMContentLoaded', function() {
+            const links = document.querySelectorAll('a[href]:not([href*="javascript"])');
+            links.forEach(link => {
+                // Remove any existing click handlers
+                const newLink = link.cloneNode(true);
+                link.parentNode.replaceChild(newLink, link);
+                
+                // Add simple click handler
+                newLink.onclick = function() {
+                    return true; // Allow navigation
+                };
+            });
+            
+            console.log('Fixed', links.length, 'navigation links');
+        });
+        
+        console.log('=== ULTIMATE NAV FIX READY ===');
+    })();
+</script>
+    
 </body>
 </html>

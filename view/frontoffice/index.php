@@ -1,7 +1,43 @@
 <?php
-include '../../controller/JeuxController.php';
+session_start();
+require_once '../../config.php';
+require_once '../../controller/user_controller.php';
+require_once '../../controller/JeuxController.php';
+require_once '../../controller/CommandeController.php';
+
+// Initialize controllers
+$userController = new UserController();
 $gamesC = new JeuxController();
-$list = $gamesC->listjeux();
+$commandeC = new CommandeController();
+
+// Check if user is logged in
+$isLoggedIn = $userController->isLoggedIn();
+$user = null;
+$username = '';
+$profilePicture = '';
+$role = '';
+
+if ($isLoggedIn) {
+    $result = $userController->viewProfile($_SESSION['user_id']);
+    $user = $result['user'];
+    $username = $user['username'];
+    $profilePicture = $user['profile_picture_url'] ?? '';
+    $role = $user['role'];
+    
+    // Get user's orders
+    $userOrders = $commandeC->getUserCommandes($_SESSION['user_id']);
+    $recentOrders = array_slice($userOrders, 0, 3);
+    
+    // Get user order stats
+    $userOrderStats = $commandeC->getUserOrderCount($_SESSION['user_id']);
+} else {
+    $userOrders = [];
+    $recentOrders = [];
+    $userOrderStats = ['order_count' => 0, 'total_spent' => 0];
+}
+
+// Get games for display
+$list = $gamesC->listjeux(null, null, null);
 $gameCount = $gamesC->countGames();
 ?>
 <!DOCTYPE html>
@@ -12,6 +48,224 @@ $gameCount = $gamesC->countGames();
     <title>Ludology Vault - Gaming Museum</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+    <style>
+        .user-menu {
+            position: relative;
+        }
+
+        .user-profile-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            padding: 0.8rem 1.5rem;
+            background: linear-gradient(135deg, rgba(0, 255, 65, 0.1), rgba(189, 0, 255, 0.1));
+            border: 2px solid var(--primary-green);
+            color: var(--text-white);
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.6rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);
+        }
+
+        .user-profile-btn:hover {
+            background: linear-gradient(135deg, rgba(0, 255, 65, 0.2), rgba(189, 0, 255, 0.2));
+            transform: translateY(-2px);
+            box-shadow: 0 0 30px rgba(0, 255, 65, 0.5);
+        }
+
+        .user-avatar {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            border: 2px solid var(--primary-green);
+            background: linear-gradient(135deg, var(--primary-green), var(--secondary-purple));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--darker-bg);
+            font-size: 0.8rem;
+            font-weight: bold;
+            overflow: hidden;
+        }
+
+        .user-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .user-name {
+            color: var(--primary-green);
+            text-shadow: 0 0 10px var(--primary-green);
+        }
+
+        .dropdown-icon {
+            font-size: 0.8rem;
+            transition: transform 0.3s;
+        }
+
+        .user-profile-btn:hover .dropdown-icon {
+            transform: translateY(2px);
+        }
+
+        .user-dropdown {
+            position: absolute;
+            top: calc(100% + 0.5rem);
+            right: 0;
+            min-width: 250px;
+            background: linear-gradient(135deg, var(--card-bg), var(--darker-bg));
+            border: 2px solid var(--primary-green);
+            box-shadow: 0 10px 40px rgba(0, 255, 65, 0.4);
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.3s;
+            z-index: 1000;
+            overflow: hidden;
+        }
+
+        .user-dropdown::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 2px,
+                    rgba(0, 255, 65, 0.03) 2px,
+                    rgba(0, 255, 65, 0.03) 4px
+                );
+            pointer-events: none;
+        }
+
+        .user-menu:hover .user-dropdown {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .dropdown-header {
+            padding: 1.5rem;
+            border-bottom: 2px solid var(--primary-green);
+            background: linear-gradient(135deg, rgba(0, 255, 65, 0.1), transparent);
+        }
+
+        .dropdown-header-title {
+            font-size: 0.6rem;
+            color: var(--primary-green);
+            margin-bottom: 0.5rem;
+        }
+
+        .dropdown-header-subtitle {
+            font-size: 0.5rem;
+            color: var(--text-gray);
+            font-family: 'VT323', monospace;
+            font-size: 0.9rem;
+        }
+
+        .dropdown-menu-list {
+            list-style: none;
+            padding: 0.5rem 0;
+        }
+
+        .dropdown-menu-item {
+            margin: 0;
+        }
+
+        .dropdown-menu-link {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem 1.5rem;
+            color: var(--text-light-gray);
+            text-decoration: none;
+            font-size: 0.6rem;
+            transition: all 0.3s;
+            border-left: 3px solid transparent;
+        }
+
+        .dropdown-menu-link:hover {
+            background: rgba(0, 255, 65, 0.1);
+            color: var(--primary-green);
+            border-left-color: var(--primary-green);
+        }
+
+        .dropdown-menu-link.admin {
+            border-top: 1px solid var(--border-color);
+            color: var(--secondary-purple);
+        }
+
+        .dropdown-menu-link.admin:hover {
+            background: rgba(189, 0, 255, 0.1);
+            color: var(--secondary-purple);
+            border-left-color: var(--secondary-purple);
+        }
+
+        .dropdown-menu-link.logout {
+            border-top: 1px solid var(--border-color);
+            color: var(--accent-pink);
+        }
+
+        .dropdown-menu-link.logout:hover {
+            background: rgba(255, 0, 110, 0.1);
+            color: var(--accent-pink);
+            border-left-color: var(--accent-pink);
+        }
+
+        .dropdown-icon-left {
+            font-size: 1rem;
+        }
+        
+        /* User hero stats */
+        .user-hero-stats {
+            display: flex;
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .user-stat-box {
+            background: linear-gradient(135deg, rgba(0, 255, 65, 0.1), rgba(189, 0, 255, 0.1));
+            border: 2px solid var(--primary-green);
+            padding: 1rem;
+            min-width: 120px;
+            text-align: center;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+
+        .user-stat-box:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 255, 65, 0.3);
+        }
+
+        .user-stat-icon {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+
+        .user-stat-number {
+            font-size: 1.2rem;
+            color: var(--primary-green);
+            display: block;
+            margin-bottom: 0.3rem;
+            font-family: 'VT323', monospace;
+            font-size: 1.5rem;
+        }
+
+        .user-stat-label {
+            font-size: 0.5rem;
+            color: var(--text-gray);
+            font-family: 'Press Start 2P', cursive;
+        }
+    </style>
 </head>
 <body>
     <!-- Particules d'arrière-plan -->
@@ -42,16 +296,72 @@ $gameCount = $gamesC->countGames();
                 <ul class="nav-menu">
                     <li><a href="index.php" class="active">HOME</a></li>
                     <li><a href="games.php">JEUX</a></li>
-                    <li><a href="blog.html">BLOG</a></li>
-                    <li><a href="events.html">EVENTS</a></li>
-                    <li><a href="reclamation.html">RÉCLAMATION</a></li>
+                    <li><a href="blog.php">BLOG</a></li>
+                    <li><a href="events.php">EVENTS</a></li>
+                    <li><a href="reclamation.php">RÉCLAMATION</a></li>
+                    <?php if ($isLoggedIn): ?>
+                    <li><a href="my-orders.php">MES COMMANDES</a></li>
+                    <?php endif; ?>
                 </ul>
             </div>
             
             <div class="nav-right">
-                <a href="../backoffice/dashboard.php" style="text-decoration: none;"><button class="btn-auth">
-                    <span class="btn-icon">▶</span> SIGN IN / SIGN UP
-                </button></a>
+                <?php if ($isLoggedIn): ?>
+                    <div class="user-menu">
+                        <button class="user-profile-btn">
+                            <div class="user-avatar">
+                                <?php if ($profilePicture && file_exists("../../uploads/" . $profilePicture)): ?>
+                                    <img src="../../uploads/<?php echo htmlspecialchars($profilePicture); ?>" alt="Profile">
+                                <?php else: ?>
+                                    <?php echo strtoupper(substr($username, 0, 2)); ?>
+                                <?php endif; ?>
+                            </div>
+                            <span class="user-name"><?php echo htmlspecialchars($username); ?></span>
+                            <span class="dropdown-icon">▼</span>
+                        </button>
+                        
+                        <div class="user-dropdown">
+                            <div class="dropdown-header">
+                                <div class="dropdown-header-title">WELCOME BACK</div>
+                                <div class="dropdown-header-subtitle"><?php echo htmlspecialchars($username); ?></div>
+                            </div>
+                            <ul class="dropdown-menu-list">
+                                <li class="dropdown-menu-item">
+                                    <a href="profile.php" class="dropdown-menu-link">
+                                        <span class="dropdown-icon-left">👤</span>
+                                        MON PROFIL
+                                    </a>
+                                </li>
+                                <li class="dropdown-menu-item">
+                                    <a href="my-orders.php" class="dropdown-menu-link">
+                                        <span class="dropdown-icon-left">🛒</span>
+                                        MES COMMANDES
+                                    </a>
+                                </li>
+                                <?php if ($role === 'admin'): ?>
+                                <li class="dropdown-menu-item">
+                                    <a href="../backoffice/dashboard.php" class="dropdown-menu-link admin">
+                                        <span class="dropdown-icon-left">⚙</span>
+                                        ADMIN DASHBOARD
+                                    </a>
+                                </li>
+                                <?php endif; ?>
+                                <li class="dropdown-menu-item">
+                                    <a href="#" class="dropdown-menu-link logout" id="logoutBtn">
+                                        <span class="dropdown-icon-left">🚪</span>
+                                        DECONNEXION
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                <?php else: ?>
+                    <a href="login.php" style="text-decoration: none;">
+                        <button class="btn-auth">
+                            <span class="btn-icon">▶</span> SIGN IN / SIGN UP
+                        </button>
+                    </a>
+                <?php endif; ?>
             </div>
         </div>
     </nav>
@@ -67,7 +377,13 @@ $gameCount = $gamesC->countGames();
                 <h2 class="hero-title glitch" data-text="PRÉSERVONS L'HISTOIRE">PRÉSERVONS L'HISTOIRE</h2>
             </div>
             <p class="hero-subtitle">
-                <span class="typing-text">Explorez la plus grande collection de jeux vidéo rétro...</span>
+                <span class="typing-text">
+                    <?php if ($isLoggedIn): ?>
+                        Bienvenue <?php echo htmlspecialchars($username); ?> ! Explorez notre collection...
+                    <?php else: ?>
+                        Explorez la plus grande collection de jeux vidéo rétro...
+                    <?php endif; ?>
+                </span>
             </p>
             
             <div class="hero-stats">
@@ -93,34 +409,58 @@ $gameCount = $gamesC->countGames();
                 </div>
             </div>
             
+            <?php if ($isLoggedIn): ?>
+            <div class="user-hero-stats">
+                <div class="user-stat-box">
+                    <div class="user-stat-icon">🛒</div>
+                    <span class="user-stat-number"><?= $userOrderStats['order_count'] ?? 0 ?></span>
+                    <span class="user-stat-label">COMMANDES</span>
+                </div>
+                <div class="user-stat-box">
+                    <div class="user-stat-icon">💰</div>
+                    <span class="user-stat-number"><?= number_format($userOrderStats['total_spent'] ?? 0, 2) ?>€</span>
+                    <span class="user-stat-label">TOTAL DÉPENSÉ</span>
+                </div>
+                <div class="user-stat-box">
+                    <div class="user-stat-icon">⭐</div>
+                    <span class="user-stat-number">
+                        <?php 
+                        if (($userOrderStats['order_count'] ?? 0) >= 10) {
+                            echo 'VIP';
+                        } elseif (($userOrderStats['order_count'] ?? 0) >= 5) {
+                            echo 'Régulier';
+                        } else {
+                            echo 'Membre';
+                        }
+                        ?>
+                    </span>
+                    <span class="user-stat-label">STATUT</span>
+                </div>
+            </div>
+            <?php endif; ?>
+            
             <div class="cta-buttons">
-                <a href="games.php" style="text-decoration: none;"><button class="btn-primary">
-                    <span>EXPLORER LA COLLECTION</span>
-                    <span class="btn-arrow">→</span>
-                </button></a>
-                <button class="btn-secondary-hero">
-                    <span>VISITE VIRTUELLE</span>
-                    <span class="btn-arrow">→</span>
-                </button>
-            </div>
-        </div>
-    </section>
-
-    <!-- Search Bar Section -->
-    <section class="search-section">
-        <div class="search-container">
-            <h3 class="search-title">◄ RECHERCHER DANS LA BASE DE DONNÉES ►</h3>
-            <div class="search-bar">
-                <input type="text" placeholder="Entrez le nom d'un jeu, console, année..." class="search-input">
-                <button class="search-button">SEARCH</button>
-            </div>
-            <div class="quick-filters">
-                <button class="filter-chip">Années 70</button>
-                <button class="filter-chip">Années 80</button>
-                <button class="filter-chip">Années 90</button>
-                <button class="filter-chip">Arcade</button>
-                <button class="filter-chip">Console</button>
-                <button class="filter-chip">PC</button>
+                <a href="games.php" style="text-decoration: none;">
+                    <button class="btn-primary">
+                        <span>EXPLORER LA COLLECTION</span>
+                        <span class="btn-arrow">→</span>
+                    </button>
+                </a>
+                <?php if ($isLoggedIn): ?>
+                <a href="my-orders.php" style="text-decoration: none;">
+                    <button class="btn-secondary-hero">
+                        <span>MES COMMANDES</span>
+                        <span class="btn-arrow">→</span>
+                    </button>
+                </a>
+                <?php else: ?>
+                <a href="login.php" style="text-decoration: none;">
+                    <button class="btn-secondary-hero">
+                        <span>CONNEXION</span>
+                        <span class="btn-arrow">→</span>
+                    </button>
+                </a>
+                <?php endif; ?>
             </div>
         </div>
     </section>
@@ -136,63 +476,72 @@ $gameCount = $gamesC->countGames();
             <p class="section-subtitle">Les pionniers qui ont façonné l'industrie du gaming</p>
         </div>
         
-         <div class="games-grid">
+        <div class="games-grid">
         <?php if (!empty($list)) { 
             foreach ($list as $game) { 
         ?>  
+            <div class="game-card">
+                <!-- CATEGORY BADGE -->
+                <div class="game-badge">
+                    <?= htmlspecialchars($game['categorie']); ?>
+                </div>
 
-        <div class="game-card">
-            <!-- CATEGORY BADGE -->
-            <div class="game-badge">
-                <?= htmlspecialchars($game['categorie']); ?>
-            </div>
+                <!-- IMAGE / PIXEL ART AREA -->
+                <div class="game-image">
+                    <div class="pixel-art">
+                        <div class="pixel-placeholder">
+                            <?= htmlspecialchars($game['nom']); ?>
+                        </div>
 
-            <!-- IMAGE / PIXEL ART AREA -->
-            <div class="game-image">
-                <div class="pixel-art">
-                    <div class="pixel-placeholder">
-                        <?= htmlspecialchars($game['nom']); ?>
+                        <div class="hover-overlay">
+                            <button class="quick-view" 
+                                    onclick="window.location.href='game-details.php?id=<?= $game['id'] ?>'">
+                                ACHETER
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- INFO UNDER THE CARD -->
+                <div class="game-info">
+                    <h3><?= htmlspecialchars($game['nom']); ?></h3>
+
+                    <div class="game-meta">
+                        <span class="game-year">💰 
+                            <?= htmlspecialchars($game['prix']); ?> €
+                        </span>
+                        <span class="game-rating">
+                            Stock : <?= htmlspecialchars($game['stock']); ?>
+                        </span>
                     </div>
 
-                    <div class="hover-overlay">
-                        <button class="quick-view">BUY</button>
+                    <p class="game-desc">
+                        <?= nl2br(htmlspecialchars(substr($game['description'], 0, 100) . '...')); ?>
+                    </p>
+
+                    <div class="game-tags">
+                        <span class="tag">
+                            <?= htmlspecialchars($game['categorie']); ?>
+                        </span>
                     </div>
+                    
+                    <!-- Add to cart button -->
+                    <?php if ($isLoggedIn && $game['stock'] > 0): ?>
+                    <form action="cart.php" method="POST" style="margin-top: 10px;">
+                        <input type="hidden" name="game_id" value="<?= $game['id'] ?>">
+                        <input type="hidden" name="action" value="add_to_cart">
+                        <button type="submit" class="btn-auth" style="width: 100%; padding: 0.5rem;">
+                            <span class="btn-icon">🛒</span> AJOUTER AU PANIER
+                        </button>
+                    </form>
+                    <?php endif; ?>
                 </div>
             </div>
-
-            <!-- INFO UNDER THE CARD (like your PAC-MAN example) -->
-            <div class="game-info">
-                <h3><?= htmlspecialchars($game['nom']); ?></h3>
-
-                <div class="game-meta">
-                    <!-- I use prix + stock instead of year + stars -->
-                    <span class="game-year">💰 
-                        <?= htmlspecialchars($game['prix']); ?> €
-                    </span>
-                    <span class="game-rating">
-                        Stock : <?= htmlspecialchars($game['stock']); ?>
-                    </span>
-                </div>
-
-                <p class="game-desc">
-                    <?= nl2br(htmlspecialchars($game['description'])); ?>
-                </p>
-
-                <div class="game-tags">
-                    <!-- main tag = categorie -->
-                    <span class="tag">
-                        <?= htmlspecialchars($game['categorie']); ?>
-                    </span>
-                    <!-- you can add more tags later if you have them in DB -->
-                </div>
-            </div>
-        </div><!-- end .game-card -->
-
         <?php 
             } 
         } 
         ?>
-    </div><!-- end .games-grid -->
+        </div>
     </section>
 
     <!-- Timeline Section -->
@@ -236,98 +585,6 @@ $gameCount = $gamesC->countGames();
                 <div class="timeline-content">
                     <h4>ÈRE PLAYSTATION</h4>
                     <p>Sony entre dans l'arène avec la PlayStation</p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Events Section -->
-    <section class="events-section">
-        <div class="section-header">
-            <h2 class="section-title">
-                <span class="title-bracket">◄◄◄</span>
-                ÉVÉNEMENTS À VENIR
-                <span class="title-bracket">►►►</span>
-            </h2>
-            <p class="section-subtitle">Rejoignez-nous pour célébrer l'histoire du gaming</p>
-        </div>
-        
-        <div class="events-grid">
-            <div class="event-card featured-event">
-                <div class="event-header">
-                    <div class="event-badge">FEATURED</div>
-                    <div class="event-date-box">
-                        <span class="date-day">25</span>
-                        <span class="date-month">NOV</span>
-                    </div>
-                </div>
-                <div class="event-content">
-                    <h3>🏆 TOURNOI RETRO ARCADE CHAMPIONSHIP</h3>
-                    <p class="event-time">⏰ 14:00 - 22:00</p>
-                    <p class="event-description">Compétition épique sur les classiques des années 80. Prix à gagner et lots exclusifs pour les meilleurs joueurs!</p>
-                    <div class="event-tags">
-                        <span class="event-tag">Compétition</span>
-                        <span class="event-tag">Arcade</span>
-                        <span class="event-tag">Prix</span>
-                    </div>
-                    <button class="btn-event">S'INSCRIRE →</button>
-                </div>
-            </div>
-
-            <div class="event-card">
-                <div class="event-header">
-                    <div class="event-date-box">
-                        <span class="date-day">02</span>
-                        <span class="date-month">DEC</span>
-                    </div>
-                </div>
-                <div class="event-content">
-                    <h3>📺 EXPOSITION: L'ÈRE NINTENDO</h3>
-                    <p class="event-time">⏰ 10:00 - 18:00</p>
-                    <p class="event-description">Découvrez l'évolution de Nintendo de la NES à la Switch avec des consoles rares et prototypes.</p>
-                    <div class="event-tags">
-                        <span class="event-tag">Exposition</span>
-                        <span class="event-tag">Nintendo</span>
-                    </div>
-                    <button class="btn-event">EN SAVOIR PLUS →</button>
-                </div>
-            </div>
-
-            <div class="event-card">
-                <div class="event-header">
-                    <div class="event-date-box">
-                        <span class="date-day">15</span>
-                        <span class="date-month">DEC</span>
-                    </div>
-                </div>
-                <div class="event-content">
-                    <h3>🎮 SOIRÉE GAMING MULTIPLAYER</h3>
-                    <p class="event-time">⏰ 18:00 - 00:00</p>
-                    <p class="event-description">Jouez à vos jeux rétro préférés en multijoueur local. Ambiance conviviale garantie!</p>
-                    <div class="event-tags">
-                        <span class="event-tag">Social</span>
-                        <span class="event-tag">Multijoueur</span>
-                    </div>
-                    <button class="btn-event">RÉSERVER →</button>
-                </div>
-            </div>
-
-            <div class="event-card">
-                <div class="event-header">
-                    <div class="event-date-box">
-                        <span class="date-day">20</span>
-                        <span class="date-month">DEC</span>
-                    </div>
-                </div>
-                <div class="event-content">
-                    <h3>🎓 CONFÉRENCE: GAME DESIGN RETRO</h3>
-                    <p class="event-time">⏰ 15:00 - 17:30</p>
-                    <p class="event-description">Rencontrez des développeurs légendaires et apprenez les secrets du game design des années 80-90.</p>
-                    <div class="event-tags">
-                        <span class="event-tag">Éducatif</span>
-                        <span class="event-tag">Design</span>
-                    </div>
-                    <button class="btn-event">BILLETS →</button>
                 </div>
             </div>
         </div>
@@ -379,11 +636,15 @@ $gameCount = $gamesC->countGames();
                 <div class="footer-section">
                     <h3 class="footer-title">NAVIGATION</h3>
                     <ul class="footer-links">
-                        <li><a href="index.html">► Accueil</a></li>
-                        <li><a href="games.html">► Collection de Jeux</a></li>
-                        <li><a href="blog.html">► Blog & Actualités</a></li>
-                        <li><a href="events.html">► Événements</a></li>
+                        <li><a href="index.php">► Accueil</a></li>
+                        <li><a href="games.php">► Collection de Jeux</a></li>
+                        <li><a href="blog.php">► Blog & Actualités</a></li>
+                        <li><a href="events.php">► Événements</a></li>
                         <li><a href="#">► À Propos</a></li>
+                        <?php if ($isLoggedIn): ?>
+                        <li><a href="profile.php">► Mon Profil</a></li>
+                        <li><a href="my-orders.php">► Mes Commandes</a></li>
+                        <?php endif; ?>
                     </ul>
                 </div>
 
@@ -393,7 +654,7 @@ $gameCount = $gamesC->countGames();
                         <li><a href="#">► Base de Données</a></li>
                         <li><a href="#">► Archives Historiques</a></li>
                         <li><a href="#">► Guides & Tutoriels</a></li>
-                        <li><a href="reclamation.html">► Support & Réclamations</a></li>
+                        <li><a href="reclamation.php">► Support & Réclamations</a></li>
                         <li><a href="#">► FAQ</a></li>
                     </ul>
                 </div>
@@ -448,5 +709,32 @@ $gameCount = $gamesC->countGames();
     </button>
 
     <script src="script.js"></script>
+    <script>
+        <?php if ($isLoggedIn): ?>
+        document.getElementById('logoutBtn').addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            if (confirm('Êtes-vous sûr de vouloir vous déconnecter?')) {
+                const formData = new FormData();
+                formData.append('action', 'logout');
+                
+                fetch('../../controller/user_controller.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        window.location.href = 'index.php';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    window.location.href = 'index.php';
+                });
+            }
+        });
+        <?php endif; ?>
+    </script>
 </body>
 </html>

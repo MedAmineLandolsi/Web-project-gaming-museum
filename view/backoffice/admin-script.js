@@ -73,14 +73,27 @@ if (chartSection) {
     chartObserver.observe(chartSection);
 }
 
+// REMOVE OR COMMENT OUT THIS SECTION - IT'S FOR SPA ONLY
+/*
 // Add active state to nav items
 const navItems = document.querySelectorAll('.nav-item a');
 navItems.forEach(item => {
     item.addEventListener('click', (e) => {
-        e.preventDefault();
+        e.preventDefault();  // THIS LINE IS PREVENTING LINKS FROM WORKING!
         document.querySelector('.nav-item.active')?.classList.remove('active');
         item.parentElement.classList.add('active');
         
+        // Close sidebar on mobile after click
+        if (window.innerWidth <= 1024) {
+            sidebar.classList.remove('open');
+        }
+    });
+});
+*/
+
+// Just keep the sidebar closing on mobile without preventing navigation
+document.querySelectorAll('.nav-item a').forEach(item => {
+    item.addEventListener('click', () => {
         // Close sidebar on mobile after click
         if (window.innerWidth <= 1024) {
             sidebar.classList.remove('open');

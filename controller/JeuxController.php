@@ -3,6 +3,69 @@ require_once __DIR__ . '/../config.php';
 
 class JeuxController
 {
+
+    /**
+ * Update game stock
+ */
+public function updateStock($game_id, $quantity_change) {
+    $db = config::connect();
+    
+    try {
+        // Get current stock
+        $sql = "SELECT stock FROM jeux WHERE id = :id";
+        $query = $db->prepare($sql);
+        $query->execute(['id' => $game_id]);
+        $current = $query->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$current) {
+            return false;
+        }
+        
+        // Calculate new stock
+        $new_stock = $current['stock'] + $quantity_change;
+        
+        // Ensure stock doesn't go negative
+        if ($new_stock < 0) {
+            $new_stock = 0;
+        }
+        
+        // Update stock
+        $sql = "UPDATE jeux SET stock = :stock WHERE id = :id";
+        $query = $db->prepare($sql);
+        $query->execute([
+            'stock' => $new_stock,
+            'id' => $game_id
+        ]);
+        
+        return true;
+    } catch (PDOException $e) {
+        error_log("Error updating stock: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Check if game has sufficient stock
+ */
+public function checkStock($game_id, $requested_quantity) {
+    $db = config::connect();
+    
+    try {
+        $sql = "SELECT stock FROM jeux WHERE id = :id";
+        $query = $db->prepare($sql);
+        $query->execute(['id' => $game_id]);
+        $result = $query->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$result) {
+            return false;
+        }
+        
+        return $result['stock'] >= $requested_quantity;
+    } catch (PDOException $e) {
+        error_log("Error checking stock: " . $e->getMessage());
+        return false;
+    }
+}
     public function listjeux($search = null, $sortBy = null, $order = null)
 {
     $db = config::getConnexion();
