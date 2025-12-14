@@ -75,6 +75,7 @@ $recentArticles = $articleModel->lireDerniers(10)->fetchAll(PDO::FETCH_ASSOC);
             display: flex;
             justify-content: space-between;
             align-items: center;
+            gap: 2rem;
         }
 
         .logo {
@@ -86,79 +87,52 @@ $recentArticles = $articleModel->lireDerniers(10)->fetchAll(PDO::FETCH_ASSOC);
                 0 0 20px var(--primary-green),
                 0 0 30px var(--primary-green);
             letter-spacing: 2px;
+            white-space: nowrap;
         }
 
-        .nav-links {
-            display: flex;
-            list-style: none;
-            gap: 2rem;
-        }
-
-        .nav-links a {
-            color: var(--text-white);
-            text-decoration: none;
-            font-size: 0.7rem;
-            transition: all 0.3s;
-            padding: 0.5rem 0;
+        /* Navigation Déroulante - TOUJOURS VISIBLE */
+        .nav-dropdown-container {
+            flex: 1;
+            max-width: 300px;
             position: relative;
         }
 
-        .nav-links a::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 0;
-            height: 2px;
-            background: linear-gradient(90deg, var(--primary-green), var(--secondary-purple));
-            transition: width 0.3s;
-        }
-
-        .nav-links a:hover::after,
-        .nav-links a.active::after {
+        .nav-dropdown {
             width: 100%;
-        }
-
-        .nav-links a:hover,
-        .nav-links a.active {
+            padding: 12px 16px;
+            font-size: 0.8rem;
+            font-family: 'Press Start 2P', cursive;
+            background: var(--card-bg);
             color: var(--primary-green);
-            text-shadow: 0 0 10px var(--primary-green);
-        }
-
-        .admin-btn {
-            background: linear-gradient(135deg, var(--secondary-purple), var(--accent-pink));
-            color: var(--text-white) !important;
-            padding: 0.9rem 1.8rem;
+            border: 2px solid var(--primary-green);
             border-radius: 0;
-            font-weight: bold;
-            border: none;
-            font-family: 'Press Start 2P', cursive;
-            font-size: 0.6rem;
-            box-shadow: 0 0 20px rgba(189, 0, 255, 0.4);
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%2300FF41' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 14px;
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.3);
             transition: all 0.3s;
         }
 
-        .admin-btn:hover {
-            transform: translateY(-2px) scale(1.05);
-            box-shadow: 0 0 30px rgba(189, 0, 255, 0.8);
+        .nav-dropdown option {
+            background: var(--darker-bg);
+            color: var(--text-white);
+            padding: 12px;
+            font-family: 'VT323', monospace;
+            font-size: 1.1rem;
         }
 
-        .logout-btn {
-            background: linear-gradient(135deg, var(--accent-pink), #ff1a75);
-            color: var(--text-white) !important;
-            padding: 0.9rem 1.8rem;
-            border-radius: 0;
-            font-weight: bold;
-            border: none;
-            font-family: 'Press Start 2P', cursive;
-            font-size: 0.6rem;
-            box-shadow: 0 0 20px rgba(255, 0, 110, 0.4);
-            transition: all 0.3s;
+        .nav-dropdown:focus {
+            outline: none;
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.5);
+            border-color: var(--secondary-purple);
         }
 
-        .logout-btn:hover {
-            transform: translateY(-2px) scale(1.05);
-            box-shadow: 0 0 30px rgba(255, 0, 110, 0.8);
+        .nav-dropdown:hover {
+            border-color: var(--secondary-purple);
+            transform: translateY(-1px);
         }
 
         /* About Section */
@@ -816,21 +790,6 @@ $recentArticles = $articleModel->lireDerniers(10)->fetchAll(PDO::FETCH_ASSOC);
             font-size: 1rem;
         }
 
-        /* Mobile Menu */
-        .mobile-menu {
-            display: none;
-            flex-direction: column;
-            cursor: pointer;
-            gap: 4px;
-        }
-
-        .mobile-menu span {
-            width: 25px;
-            height: 3px;
-            background: var(--primary-green);
-            transition: 0.3s;
-        }
-
         /* Responsive */
         @media (max-width: 768px) {
             .section-title {
@@ -849,24 +808,21 @@ $recentArticles = $articleModel->lireDerniers(10)->fetchAll(PDO::FETCH_ASSOC);
                 grid-template-columns: repeat(2, 1fr);
             }
             
-            .nav-links {
-                display: none;
+            .nav {
                 flex-direction: column;
-                position: absolute;
-                top: 100%;
-                left: 0;
+                gap: 1rem;
+                align-items: flex-start;
+            }
+            
+            .nav-dropdown-container {
+                max-width: 100%;
                 width: 100%;
-                background: var(--darker-bg);
-                padding: 1.5rem;
-                border-top: 2px solid var(--primary-green);
             }
             
-            .nav-links.active {
-                display: flex;
-            }
-            
-            .mobile-menu {
-                display: flex;
+            .nav-dropdown {
+                width: 100%;
+                font-size: 0.7rem;
+                padding: 10px 12px;
             }
             
             .community-cta {
@@ -900,6 +856,10 @@ $recentArticles = $articleModel->lireDerniers(10)->fetchAll(PDO::FETCH_ASSOC);
             .chatbot-messages {
                 max-height: 300px;
             }
+            
+            .logo {
+                font-size: 1rem;
+            }
         }
     </style>
 </head>
@@ -917,40 +877,25 @@ $recentArticles = $articleModel->lireDerniers(10)->fetchAll(PDO::FETCH_ASSOC);
         <div class="container">
             <nav class="nav">
                 <div class="logo">🎮 LV BLOG GAMING</div>
-                <ul class="nav-links">
-                    <li><a href="index.php">ACCUEIL</a></li>
-                    <li><a href="blog.php">ARTICLES</a></li>
-                    <li><a href="about.php" class="active">À PROPOS</a></li>
-                    <?php if (isset($_SESSION['user_id'])): ?>
-                        <li><a href="submit-article.php">✍️ ÉCRIRE UN ARTICLE</a></li>
-                        <li><a href="mes-articles.php">MES ARTICLES</a></li>
-                        <li>
-                            <a href="deconnexion.php" class="logout-btn">
-                                DÉCONNEXION (
-                                <?php 
-                                    // CORRECTION ICI : Utiliser user_first_name ou user_username
-                                    if (isset($_SESSION['user_first_name']) && !empty($_SESSION['user_first_name'])) {
-                                        echo htmlspecialchars($_SESSION['user_first_name']);
-                                    } elseif (isset($_SESSION['user_username'])) {
-                                        echo htmlspecialchars($_SESSION['user_username']);
-                                    } else {
-                                        echo 'Utilisateur';
-                                    }
-                                ?>
-                                )
-                            </a>
-                        </li>
-                    <?php else: ?>
-                        <li><a href="submit-article.php">✍️ ÉCRIRE UN ARTICLE</a></li>
-                        <li><a href="connexion.php">SE CONNECTER</a></li>
-                        <li><a href="inscription.php">S'INSCRIRE</a></li>
-                        <li><a href="../Backoffice/login.php" class="admin-btn">ESPACE ADMIN</a></li>
-                    <?php endif; ?>
-                </ul>
-                <div class="mobile-menu">
-                    <span></span>
-                    <span></span>
-                    <span></span>
+                
+                <!-- Navigation Déroulante (TOUJOURS VISIBLE) -->
+                <div class="nav-dropdown-container">
+                    <select class="nav-dropdown" onchange="if(this.value) window.location.href=this.value">
+                        <option value="">-- MENU PRINCIPAL --</option>
+                        <option value="index.php">🏠 ACCUEIL</option>
+                        <option value="blog.php">📰 ARTICLES</option>
+                        <option value="about.php" selected>ℹ️ À PROPOS</option>
+                        <?php if (isset($_SESSION['user_id'])): ?>
+                            <option value="submit-article.php">✍️ ÉCRIRE UN ARTICLE</option>
+                            <option value="mes-articles.php">📁 MES ARTICLES</option>
+                            <option value="deconnexion.php">🚪 DÉCONNEXION</option>
+                        <?php else: ?>
+                            <option value="submit-article.php">✍️ ÉCRIRE UN ARTICLE</option>
+                            <option value="connexion.php">🔐 SE CONNECTER</option>
+                            <option value="inscription.php">📝 S'INSCRIRE</option>
+                            <option value="../Backoffice/login.php">👑 ESPACE ADMIN</option>
+                        <?php endif; ?>
+                    </select>
                 </div>
             </nav>
         </div>
@@ -1081,7 +1026,7 @@ $recentArticles = $articleModel->lireDerniers(10)->fetchAll(PDO::FETCH_ASSOC);
                     </div>
                 </div>
 
-                <!-- NOUVELLE SECTION FAQ -->
+                <!-- SECTION FAQ -->
                 <div class="faq-section">
                     <h2 style="text-align: center; margin-bottom: 1rem; color: var(--primary-green); font-size: 2rem; font-weight: 800;">
                         QUESTIONS FRÉQUENTES
@@ -1201,32 +1146,11 @@ $recentArticles = $articleModel->lireDerniers(10)->fetchAll(PDO::FETCH_ASSOC);
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const mobileMenu = document.querySelector('.mobile-menu');
-            const navLinksContainer = document.querySelector('.nav-links');
-            
-            if (mobileMenu && navLinksContainer) {
-                mobileMenu.addEventListener('click', function() {
-                    navLinksContainer.classList.toggle('active');
-                });
-            }
-
             // Animation des particules
             const particles = document.querySelectorAll('.particle');
             particles.forEach((particle, index) => {
                 particle.style.animationDelay = `${index * 2}s`;
                 particle.style.animationDuration = `${15 + Math.random() * 10}s`;
-            });
-
-            const currentPage = window.location.pathname.split('/').pop();
-            const navLinks = document.querySelectorAll('.nav-links a');
-            
-            navLinks.forEach(link => {
-                const linkPage = link.getAttribute('href');
-                if (linkPage === currentPage) {
-                    link.classList.add('active');
-                } else {
-                    link.classList.remove('active');
-                }
             });
 
             // FAQ Toggle Functionality
@@ -1334,6 +1258,22 @@ $recentArticles = $articleModel->lireDerniers(10)->fetchAll(PDO::FETCH_ASSOC);
                     chatbotToggle.classList.remove('active');
                 }
             });
+
+            // Définir la valeur sélectionnée dans la liste déroulante
+            const navDropdown = document.querySelector('.nav-dropdown');
+            if (navDropdown) {
+                const currentPage = window.location.pathname.split('/').pop();
+                
+                // S'assurer que "À PROPOS" est sélectionné sur cette page
+                if (currentPage === 'about.php') {
+                    navDropdown.value = 'about.php';
+                }
+                
+                // Si la page actuelle n'est pas trouvée dans les options, sélectionner la première option
+                if (!navDropdown.value) {
+                    navDropdown.selectedIndex = 0;
+                }
+            }
         });
     </script>
 </body>
