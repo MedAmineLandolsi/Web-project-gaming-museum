@@ -1,510 +1,869 @@
+
 <?php
+// controller/CommandeController.php
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../model/Commande.php';
 
 class CommandeController {
-    
-    
-    // Add this method to your CommandeController class0
-public function getUserCommandes($userId) {
-    $db = config::connect();
-    
-    try {
-        // First try with full join
-        $sql = "SELECT 
-                    c.*,
-                    j.nom as game_name,
-                    j.categorie as game_category,
-                    j.prix as unit_price,
-                    u.username,
-                    u.email
-                FROM commande c
-                LEFT JOIN jeux j ON c.Produit_id = j.id
-                LEFT JOIN users u ON c.user_id = u.id
-                WHERE c.user_id = :user_id
-                ORDER BY c.Date DESC, c.id DESC";
-        
-        $query = $db->prepare($sql);
-        $query->bindParam(':user_id', $userId, PDO::PARAM_INT);
-        $query->execute();
-        
-        $orders = $query->fetchAll(PDO::FETCH_ASSOC);
-        
-        // Format the data
-        foreach ($orders as &$order) {
-            // Ensure numeric values are properly typed
-            $order['Total'] = floatval($order['Total'] ?? 0);
-            $order['quantity'] = intval($order['quantity'] ?? 1);
-            $order['unit_price'] = floatval($order['unit_price'] ?? 0);
-            
-            // Format date if needed
-            if (!empty($order['Date'])) {
-                $order['formatted_date'] = date('d/m/Y', strtotime($order['Date']));
+    /**
+     * Get all commandes for dashboard (with user info)
+     */
+    public function listCommandes($search = null, $sortBy = null, $order = null)
+    {
+        $db = config::getConnexion();
+
+        try {
+            $sql = "SELECT c.*, u.username, u.email, j.nom as produit_nom 
+                    FROM commande c
+                    LEFT JOIN users u ON c.user_id = u.id
+                    LEFT JOIN jeux j ON c.Produit_id = j.id
+                    WHERE 1=1";
+            $params = [];
+
+            if ($search) {
+                $sql .= " AND (c.order_ref LIKE :search OR u.username LIKE :search OR j.nom LIKE :search)";
+                $params['search'] = '%' . $search . '%';
             }
+
+            $validColumns = ['c.ID', 'c.Total', 'c.Date', 'c.statut'];
+            $validOrder = ['asc', 'desc'];
+
+            if ($sortBy && in_array(strtolower($sortBy), array_map('strtolower', $validColumns))) {
+                $sql .= " ORDER BY " . $sortBy;
+                $sql .= " " . (in_array(strtolower($order), $validOrder) ? strtoupper($order) : "DESC");
+            } else {
+                $sql .= " ORDER BY c.ID DESC";
+            }
+
+            $query = $db->prepare($sql);
+            $query->execute($params);
+
+            return $query->fetchAll(PDO::FETCH_ASSOC);
+
+        } catch (Exception $e) {
+            error_log('Error listing commandes: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Get dashboard statistics
+     */
+    public function getDashboardStats()
+    {
+        $db = config::getConnexion();
+
+        try {
+            $stats = [];
             
-            // Add status badge class
-            if (!empty($order['statut'])) {
-                switch ($order['statut']) {
-                    case 'completed':
-                    case 'delivered':
-                        $order['status_class'] = 'status-active';
-                        break;
-                    case 'pending':
-                    case 'processing':
-                        $order['status_class'] = 'status-pending';
-                        break;
-                    case 'cancelled':
-                        $order['status_class'] = 'status-cancelled';
-                        break;
-                    default:
-                        $order['status_class'] = '';
+            // Total orders
+            $sql = "SELECT COUNT(*) as total_orders FROM commande";
+            $query = $db->query($sql);
+            $result = $query->fetch(PDO::FETCH_ASSOC);
+            $stats['total_orders'] = $result['total_orders'] ?? 0;
+            
+            // Total revenue
+            $sql = "SELECT SUM(Total) as total_revenue FROM commande WHERE statut IN ('completed', 'shipped', 'delivered')";
+            $query = $db->query($sql);
+            $result = $query->fetch(PDO::FETCH_ASSOC);
+            $stats['total_revenue'] = $result['total_revenue'] ?? 0;
+            
+            // Pending orders
+            $sql = "SELECT COUNT(*) as pending_orders FROM commande WHERE statut = 'pending'";
+            $query = $db->query($sql);
+            $result = $query->fetch(PDO::FETCH_ASSOC);
+            $stats['pending_orders'] = $result['pending_orders'] ?? 0;
+            
+            // Recent revenue (last 30 days)
+            $sql = "SELECT SUM(Total) as recent_revenue FROM commande 
+                    WHERE Date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) 
+                    AND statut IN ('completed', 'shipped', 'delivered')";
+            $query = $db->query($sql);
+            $result = $query->fetch(PDO::FETCH_ASSOC);
+            $stats['recent_revenue'] = $result['recent_revenue'] ?? 0;
+            
+            return $stats;
+
+        } catch (Exception $e) {
+            error_log('Error getting dashboard stats: ' . $e->getMessage());
+            return [
+                'total_orders' => 0,
+                'total_revenue' => 0,
+                'pending_orders' => 0,
+                'recent_revenue' => 0
+            ];
+        }
+    }
+
+    /**
+     * Add a new commande
+     */
+    public function addCommande($data)
+    {
+        try {
+            // Validate required fields
+            if (empty($data['Produit_id']) || empty($data['quantity']) || empty($data['statut'])) {
+                return ['success' => false, 'error' => 'Champs requis manquants'];
+            }
+
+            // Generate order reference if not provided
+            if (empty($data['order_ref'])) {
+                $data['order_ref'] = 'ORD-' . date('Ymd') . '-' . strtoupper(uniqid());
+            }
+
+            // Get product price to calculate total if not provided
+            if (empty($data['Total']) && !empty($data['Produit_id']) && !empty($data['quantity'])) {
+                $gameController = new JeuxController();
+                $game = $gameController->getGameById($data['Produit_id']);
+                if ($game) {
+                    $data['Total'] = $game['prix'] * $data['quantity'];
+                } else {
+                    return ['success' => false, 'error' => 'Produit non trouvé'];
                 }
             }
+
+            $sql = "INSERT INTO commande (
+                Produit_id, Total, quantity, Date, user_id, 
+                order_ref, statut, shipping_name, shipping_email,
+                shipping_phone, shipping_address, shipping_city,
+                shipping_zip, shipping_country, billing_name,
+                billing_address, billing_city, billing_zip,
+                billing_country, payment_method, notes
+            ) VALUES (
+                :Produit_id, :Total, :quantity, :Date, :user_id,
+                :order_ref, :statut, :shipping_name, :shipping_email,
+                :shipping_phone, :shipping_address, :shipping_city,
+                :shipping_zip, :shipping_country, :billing_name,
+                :billing_address, :billing_city, :billing_zip,
+                :billing_country, :payment_method, :notes
+            )";
+
+            $db = config::getConnexion();
+            $query = $db->prepare($sql);
+
+            // Set default values if not provided
+            $defaults = [
+                'Total' => 0,
+                'Date' => date('Y-m-d'),
+                'user_id' => null,
+                'shipping_name' => null,
+                'shipping_email' => null,
+                'shipping_phone' => null,
+                'shipping_address' => null,
+                'shipping_city' => null,
+                'shipping_zip' => null,
+                'shipping_country' => null,
+                'billing_name' => null,
+                'billing_address' => null,
+                'billing_city' => null,
+                'billing_zip' => null,
+                'billing_country' => null,
+                'payment_method' => null,
+                'notes' => null
+            ];
+
+            foreach ($defaults as $key => $value) {
+                if (!isset($data[$key])) {
+                    $data[$key] = $value;
+                }
+            }
+
+            $query->execute([
+                'Produit_id' => $data['Produit_id'],
+                'Total' => $data['Total'],
+                'quantity' => $data['quantity'],
+                'Date' => $data['Date'],
+                'user_id' => $data['user_id'],
+                'order_ref' => $data['order_ref'],
+                'statut' => $data['statut'],
+                'shipping_name' => $data['shipping_name'],
+                'shipping_email' => $data['shipping_email'],
+                'shipping_phone' => $data['shipping_phone'],
+                'shipping_address' => $data['shipping_address'],
+                'shipping_city' => $data['shipping_city'],
+                'shipping_zip' => $data['shipping_zip'],
+                'shipping_country' => $data['shipping_country'],
+                'billing_name' => $data['billing_name'],
+                'billing_address' => $data['billing_address'],
+                'billing_city' => $data['billing_city'],
+                'billing_zip' => $data['billing_zip'],
+                'billing_country' => $data['billing_country'],
+                'payment_method' => $data['payment_method'],
+                'notes' => $data['notes']
+            ]);
+
+            $lastId = $db->lastInsertId();
+            
+            // Update stock if order is completed/shipped
+            if ($data['statut'] === 'completed' || $data['statut'] === 'shipped' || $data['statut'] === 'delivered') {
+                $gameController = new JeuxController();
+                $gameController->updateStock($data['Produit_id'], -$data['quantity']);
+            }
+
+            return ['success' => true, 'id' => $lastId, 'order_ref' => $data['order_ref']];
+
+        } catch (Exception $e) {
+            error_log('Error adding commande: ' . $e->getMessage());
+            return ['success' => false, 'error' => 'Error: ' . $e->getMessage()];
         }
-        
-        return $orders;
-        
-    } catch (PDOException $e) {
-        error_log("Error in getUserCommandes (main query): " . $e->getMessage());
-        
-        // Try simpler query if join fails
+    }
+
+    /**
+     * Update a commande
+     */
+    public function updateCommande($id, $data)
+    {
         try {
-            $sql = "SELECT * FROM commande 
-                    WHERE user_id = :user_id 
-                    ORDER BY Date DESC, id DESC";
+            $db = config::getConnexion();
+
+            // Get old commande data to track stock changes
+            $oldCommande = $this->getCommandeById($id);
+            if (!$oldCommande) {
+                return ['success' => false, 'error' => 'Commande non trouvée'];
+            }
+
+            // Build update query
+            $fields = [];
+            $params = ['id' => $id];
+            
+            $updatableFields = [
+                'Produit_id', 'Total', 'quantity', 'Date', 'user_id',
+                'order_ref', 'statut', 'shipping_name', 'shipping_email',
+                'shipping_phone', 'shipping_address', 'shipping_city',
+                'shipping_zip', 'shipping_country', 'billing_name',
+                'billing_address', 'billing_city', 'billing_zip',
+                'billing_country', 'payment_method', 'notes'
+            ];
+            
+            foreach ($updatableFields as $field) {
+                if (isset($data[$field])) {
+                    $fields[] = "$field = :$field";
+                    $params[$field] = $data[$field];
+                }
+            }
+            
+            if (empty($fields)) {
+                return ['success' => false, 'error' => 'Aucun champ à mettre à jour'];
+            }
+            
+            $sql = "UPDATE commande SET " . implode(', ', $fields) . " WHERE ID = :id";
             
             $query = $db->prepare($sql);
-            $query->bindParam(':user_id', $userId, PDO::PARAM_INT);
+            $query->execute($params);
+            
+            // Handle stock updates if status or quantity changed
+            if (isset($data['statut']) || isset($data['quantity']) || isset($data['Produit_id'])) {
+                $this->handleStockUpdate($oldCommande, $data);
+            }
+            
+            return ['success' => true, 'affected_rows' => $query->rowCount()];
+
+        } catch (Exception $e) {
+            error_log('Error updating commande: ' . $e->getMessage());
+            return ['success' => false, 'error' => 'Error: ' . $e->getMessage()];
+        }
+    }
+
+    /**
+     * Delete a commande
+     */
+    public function deleteCommande($id)
+    {
+        try {
+            $db = config::getConnexion();
+            
+            // Get commande before deleting to restore stock
+            $commande = $this->getCommandeById($id);
+            if (!$commande) {
+                return ['success' => false, 'error' => 'Commande non trouvée'];
+            }
+            
+            // Restore stock if order was completed/shipped/delivered
+            if ($commande['statut'] === 'completed' || $commande['statut'] === 'shipped' || $commande['statut'] === 'delivered') {
+                $gameController = new JeuxController();
+                $gameController->updateStock($commande['Produit_id'], $commande['quantity']);
+            }
+            
+            $sql = "DELETE FROM commande WHERE ID = :id";
+            $query = $db->prepare($sql);
+            $query->execute(['id' => $id]);
+            
+            return ['success' => true, 'affected_rows' => $query->rowCount()];
+
+        } catch (Exception $e) {
+            error_log('Error deleting commande: ' . $e->getMessage());
+            return ['success' => false, 'error' => 'Error: ' . $e->getMessage()];
+        }
+    }
+
+    /**
+     * Get commande by ID with full details
+     */
+    public function getCommandeById($id)
+    {
+        $db = config::getConnexion();
+
+        try {
+            $sql = "SELECT c.*, u.username, u.email, j.nom as produit_nom, j.prix as produit_prix 
+                    FROM commande c
+                    LEFT JOIN users u ON c.user_id = u.id
+                    LEFT JOIN jeux j ON c.Produit_id = j.id
+                    WHERE c.ID = :id";
+            
+            $query = $db->prepare($sql);
+            $query->execute(['id' => $id]);
+            
+            return $query->fetch(PDO::FETCH_ASSOC);
+
+        } catch (Exception $e) {
+            error_log('Error getting commande by id: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Get all available statuses
+     */
+    public function getStatuses()
+    {
+        return [
+            'pending' => 'En attente',
+            'processing' => 'En traitement',
+            'shipped' => 'Expédié',
+            'delivered' => 'Livré',
+            'completed' => 'Terminé',
+            'cancelled' => 'Annulé'
+        ];
+    }
+
+    /**
+     * Handle stock updates when commande changes
+     */
+    private function handleStockUpdate($oldCommande, $newData)
+    {
+        $gameController = new JeuxController();
+        
+        $oldStatus = $oldCommande['statut'];
+        $newStatus = $newData['statut'] ?? $oldStatus;
+        $oldQuantity = $oldCommande['quantity'];
+        $newQuantity = $newData['quantity'] ?? $oldQuantity;
+        $oldProductId = $oldCommande['Produit_id'];
+        $newProductId = $newData['Produit_id'] ?? $oldProductId;
+        
+        // Define completed statuses
+        $completedStatuses = ['completed', 'shipped', 'delivered'];
+        $wasCompleted = in_array($oldStatus, $completedStatuses);
+        $isNowCompleted = in_array($newStatus, $completedStatuses);
+        
+        // Case 1: Product changed
+        if ($newProductId != $oldProductId) {
+            // Restore stock from old product
+            if ($wasCompleted) {
+                $gameController->updateStock($oldProductId, $oldQuantity);
+            }
+            // Deduct stock from new product
+            if ($isNowCompleted) {
+                $gameController->updateStock($newProductId, -$newQuantity);
+            }
+        }
+        // Case 2: Quantity changed
+        else if ($newQuantity != $oldQuantity) {
+            $quantityDiff = $oldQuantity - $newQuantity;
+            if ($wasCompleted) {
+                $gameController->updateStock($oldProductId, $quantityDiff);
+            }
+        }
+        // Case 3: Status changed
+        else if ($newStatus != $oldStatus) {
+            if ($wasCompleted && !$isNowCompleted) {
+                // Restore stock
+                $gameController->updateStock($oldProductId, $oldQuantity);
+            } else if (!$wasCompleted && $isNowCompleted) {
+                // Deduct stock
+                $gameController->updateStock($oldProductId, -$oldQuantity);
+            }
+        }
+    }
+
+    /**
+     * Get commande details for modal view
+     */
+    public function getCommandeDetails($id)
+    {
+        $commande = $this->getCommandeById($id);
+        
+        if (!$commande) {
+            return ['success' => false, 'error' => 'Commande non trouvée'];
+        }
+        
+        return [
+            'success' => true,
+            'commande' => $commande,
+            'user_info' => [
+                'username' => $commande['username'] ?? null,
+                'email' => $commande['email'] ?? null
+            ],
+            'produit_info' => [
+                'nom' => $commande['produit_nom'] ?? null,
+                'prix' => $commande['produit_prix'] ?? 0
+            ]
+        ];
+    }
+
+    /**
+     * Get recent commandes for dashboard (last 5)
+     */
+    public function getRecentCommandes($limit = 5)
+    {
+        $db = config::getConnexion();
+
+        try {
+            $sql = "SELECT c.*, u.username, j.nom as produit_nom 
+                    FROM commande c
+                    LEFT JOIN users u ON c.user_id = u.id
+                    LEFT JOIN jeux j ON c.Produit_id = j.id
+                    ORDER BY c.Date DESC, c.ID DESC 
+                    LIMIT :limit";
+            
+            $query = $db->prepare($sql);
+            $query->bindValue(':limit', (int)$limit, PDO::PARAM_INT);
             $query->execute();
+            
+            return $query->fetchAll(PDO::FETCH_ASSOC);
+
+        } catch (Exception $e) {
+            error_log('Error getting recent commandes: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * AJAX handler for frontend requests
+     */
+    public function handleAjaxRequest()
+    {
+        if (!isset($_GET['action'])) {
+            return ['success' => false, 'error' => 'Action non spécifiée'];
+        }
+
+        $action = $_GET['action'];
+
+        switch ($action) {
+            case 'getDetails':
+                if (!isset($_GET['id'])) {
+                    return ['success' => false, 'error' => 'ID non spécifié'];
+                }
+                return $this->getCommandeDetails($_GET['id']);
+                
+            case 'delete':
+                if (!isset($_GET['id'])) {
+                    return ['success' => false, 'error' => 'ID non spécifié'];
+                }
+                return $this->deleteCommande($_GET['id']);
+                
+            default:
+                return ['success' => false, 'error' => 'Action non reconnue'];
+        }
+    }
+
+    /**
+     * Get commandes for a specific user
+     */
+    public function getUserCommandes($userId)
+    {
+        $db = config::getConnexion();
+
+        try {
+            $sql = "SELECT c.*, j.nom as produit_nom, j.prix as produit_prix, j.image as produit_image
+                    FROM commande c
+                    LEFT JOIN jeux j ON c.Produit_id = j.id
+                    WHERE c.user_id = :user_id
+                    ORDER BY c.Date DESC, c.ID DESC";
+            
+            $query = $db->prepare($sql);
+            $query->execute(['user_id' => $userId]);
+            
+            return $query->fetchAll(PDO::FETCH_ASSOC);
+
+        } catch (Exception $e) {
+            error_log('Error getting user commandes: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Get user order count and total spent
+     */
+    public function getUserOrderCount($userId)
+    {
+        $db = config::getConnexion();
+
+        try {
+            $sql = "SELECT 
+                        COUNT(*) as order_count,
+                        SUM(Total) as total_spent,
+                        SUM(quantity) as games_count
+                    FROM commande 
+                    WHERE user_id = :user_id 
+                    AND statut IN ('completed', 'shipped', 'delivered')";
+            
+            $query = $db->prepare($sql);
+            $query->execute(['user_id' => $userId]);
+            
+            $result = $query->fetch(PDO::FETCH_ASSOC);
+            
+            return [
+                'order_count' => $result['order_count'] ?? 0,
+                'total_spent' => $result['total_spent'] ?? 0,
+                'games_count' => $result['games_count'] ?? 0
+            ];
+
+        } catch (Exception $e) {
+            error_log('Error getting user order count: ' . $e->getMessage());
+            return ['order_count' => 0, 'total_spent' => 0, 'games_count' => 0];
+        }
+    }
+
+    /**
+     * Create order from cart
+     */
+    public function createOrderFromCart($userId, $cartItems, $shippingData, $paymentMethod)
+    {
+        try {
+            $db = config::getConnexion();
+            
+            // Start transaction
+            $db->beginTransaction();
+            
+            $orderIds = [];
+            
+            foreach ($cartItems as $item) {
+                // Check stock
+                $gameController = new JeuxController();
+                $game = $gameController->getGameById($item['game_id']);
+                
+                if (!$game || $game['stock'] < $item['quantity']) {
+                    throw new Exception("Stock insuffisant pour: " . $item['name']);
+                }
+                
+                // Create order reference
+                $orderRef = 'ORD-' . date('Ymd') . '-' . strtoupper(uniqid());
+                
+                // Calculate total
+                $total = $item['price'] * $item['quantity'];
+                
+                $sql = "INSERT INTO commande (
+                    Produit_id, Total, quantity, Date, user_id, 
+                    order_ref, statut, shipping_name, shipping_email,
+                    shipping_phone, shipping_address, shipping_city,
+                    shipping_zip, shipping_country, payment_method
+                ) VALUES (
+                    :Produit_id, :Total, :quantity, :Date, :user_id,
+                    :order_ref, :statut, :shipping_name, :shipping_email,
+                    :shipping_phone, :shipping_address, :shipping_city,
+                    :shipping_zip, :shipping_country, :payment_method
+                )";
+                
+                $query = $db->prepare($sql);
+                $query->execute([
+                    'Produit_id' => $item['game_id'],
+                    'Total' => $total,
+                    'quantity' => $item['quantity'],
+                    'Date' => date('Y-m-d H:i:s'),
+                    'user_id' => $userId,
+                    'order_ref' => $orderRef,
+                    'statut' => 'pending',
+                    'shipping_name' => $shippingData['name'] ?? null,
+                    'shipping_email' => $shippingData['email'] ?? null,
+                    'shipping_phone' => $shippingData['phone'] ?? null,
+                    'shipping_address' => $shippingData['address'] ?? null,
+                    'shipping_city' => $shippingData['city'] ?? null,
+                    'shipping_zip' => $shippingData['zip'] ?? null,
+                    'shipping_country' => $shippingData['country'] ?? null,
+                    'payment_method' => $paymentMethod
+                ]);
+                
+                $orderIds[] = [
+                    'id' => $db->lastInsertId(),
+                    'ref' => $orderRef,
+                    'game' => $item['name']
+                ];
+                
+                // Update stock
+                $gameController->updateStock($item['game_id'], -$item['quantity']);
+            }
+            
+            // Commit transaction
+            $db->commit();
+            
+            return [
+                'success' => true,
+                'order_ids' => $orderIds,
+                'message' => count($orderIds) . ' commande(s) créée(s) avec succès'
+            ];
+
+        } catch (Exception $e) {
+            // Rollback on error
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            
+            error_log('Error creating order from cart: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'error' => 'Erreur lors de la création de la commande: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Get monthly revenue statistics
+     */
+    public function getMonthlyRevenue($year = null)
+    {
+        $db = config::getConnexion();
+        
+        if (!$year) {
+            $year = date('Y');
+        }
+
+        try {
+            $sql = "SELECT 
+                        DATE_FORMAT(Date, '%Y-%m') as month,
+                        COUNT(*) as order_count,
+                        SUM(Total) as revenue,
+                        SUM(quantity) as games_sold
+                    FROM commande 
+                    WHERE YEAR(Date) = :year 
+                    AND statut IN ('completed', 'shipped', 'delivered')
+                    GROUP BY DATE_FORMAT(Date, '%Y-%m')
+                    ORDER BY month";
+            
+            $query = $db->prepare($sql);
+            $query->execute(['year' => $year]);
+            
+            return $query->fetchAll(PDO::FETCH_ASSOC);
+
+        } catch (Exception $e) {
+            error_log('Error getting monthly revenue: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Get top selling games
+     */
+    public function getTopSellingGames($limit = 10)
+    {
+        $db = config::getConnexion();
+
+        try {
+            $sql = "SELECT 
+                        j.id,
+                        j.nom,
+                        j.categorie,
+                        COUNT(c.ID) as total_orders,
+                        SUM(c.quantity) as total_quantity,
+                        SUM(c.Total) as total_revenue
+                    FROM commande c
+                    JOIN jeux j ON c.Produit_id = j.id
+                    WHERE c.statut IN ('completed', 'shipped', 'delivered')
+                    GROUP BY j.id, j.nom, j.categorie
+                    ORDER BY total_quantity DESC
+                    LIMIT :limit";
+            
+            $query = $db->prepare($sql);
+            $query->bindValue(':limit', (int)$limit, PDO::PARAM_INT);
+            $query->execute();
+            
+            return $query->fetchAll(PDO::FETCH_ASSOC);
+
+        } catch (Exception $e) {
+            error_log('Error getting top selling games: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Export orders to CSV
+     */
+    public function exportOrdersToCSV($startDate = null, $endDate = null)
+    {
+        $db = config::getConnexion();
+
+        try {
+            $sql = "SELECT 
+                        c.ID,
+                        c.order_ref,
+                        c.Date,
+                        u.username,
+                        u.email,
+                        j.nom as produit_nom,
+                        c.quantity,
+                        c.Total,
+                        c.statut,
+                        c.payment_method,
+                        c.shipping_name,
+                        c.shipping_address,
+                        c.shipping_city,
+                        c.shipping_country
+                    FROM commande c
+                    LEFT JOIN users u ON c.user_id = u.id
+                    LEFT JOIN jeux j ON c.Produit_id = j.id
+                    WHERE 1=1";
+            
+            $params = [];
+            
+            if ($startDate) {
+                $sql .= " AND c.Date >= :start_date";
+                $params['start_date'] = $startDate;
+            }
+            
+            if ($endDate) {
+                $sql .= " AND c.Date <= :end_date";
+                $params['end_date'] = $endDate;
+            }
+            
+            $sql .= " ORDER BY c.Date DESC";
+            
+            $query = $db->prepare($sql);
+            $query->execute($params);
             
             $orders = $query->fetchAll(PDO::FETCH_ASSOC);
             
-            // Get additional info separately
-            foreach ($orders as &$order) {
-                // Get game info
-                if (!empty($order['Produit_id'])) {
-                    $game_sql = "SELECT nom, categorie, prix FROM jeux WHERE id = :id";
-                    $game_query = $db->prepare($game_sql);
-                    $game_query->execute(['id' => $order['Produit_id']]);
-                    $game = $game_query->fetch();
-                    
-                    if ($game) {
-                        $order['game_name'] = $game['nom'] ?? '';
-                        $order['game_category'] = $game['categorie'] ?? '';
-                        $order['unit_price'] = floatval($game['prix'] ?? 0);
-                    }
-                }
-                
-                // Get user info
-                if (!empty($order['user_id'])) {
-                    $user_sql = "SELECT username, email FROM users WHERE id = :id";
-                    $user_query = $db->prepare($user_sql);
-                    $user_query->execute(['id' => $order['user_id']]);
-                    $user = $user_query->fetch();
-                    
-                    if ($user) {
-                        $order['username'] = $user['username'] ?? '';
-                        $order['email'] = $user['email'] ?? '';
-                    }
-                }
-                
-                // Format data
-                $order['Total'] = floatval($order['Total'] ?? 0);
-                $order['quantity'] = intval($order['quantity'] ?? 1);
-                
-                if (!empty($order['Date'])) {
-                    $order['formatted_date'] = date('d/m/Y', strtotime($order['Date']));
-                }
+            // Generate CSV
+            $csv = "ID,Référence,Date,Client,Email,Produit,Quantité,Total,Statut,Paiement,Nom Livraison,Adresse,Ville,Pays\n";
+            
+            foreach ($orders as $order) {
+                $csv .= '"' . implode('","', [
+                    $order['ID'],
+                    $order['order_ref'],
+                    $order['Date'],
+                    $order['username'] ?? '',
+                    $order['email'] ?? '',
+                    $order['produit_nom'] ?? '',
+                    $order['quantity'],
+                    $order['Total'],
+                    $order['statut'],
+                    $order['payment_method'] ?? '',
+                    $order['shipping_name'] ?? '',
+                    $order['shipping_address'] ?? '',
+                    $order['shipping_city'] ?? '',
+                    $order['shipping_country'] ?? ''
+                ]) . "\"\n";
             }
             
-            return $orders;
+            return $csv;
+
+        } catch (Exception $e) {
+            error_log('Error exporting orders to CSV: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Count total commandes
+     */
+    public function countCommandes($status = null)
+    {
+        $db = config::getConnexion();
+        
+        try {
+            $sql = "SELECT COUNT(*) as total FROM commande WHERE 1=1";
+            $params = [];
             
-        } catch (PDOException $e2) {
-            error_log("Error in getUserCommandes (fallback): " . $e2->getMessage());
+            if ($status) {
+                $sql .= " AND statut = :statut";
+                $params['statut'] = $status;
+            }
+            
+            $query = $db->prepare($sql);
+            $query->execute($params);
+            $result = $query->fetch(PDO::FETCH_ASSOC);
+            return $result['total'] ?? 0;
+        } catch (Exception $e) {
+            error_log('Error counting commandes: ' . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Get total revenue
+     */
+    public function getTotalRevenue($status = null)
+    {
+        $db = config::getConnexion();
+        
+        try {
+            $sql = "SELECT SUM(Total) as revenue FROM commande WHERE 1=1";
+            $params = [];
+            
+            if ($status) {
+                $sql .= " AND statut = :statut";
+                $params['statut'] = $status;
+            }
+            
+            $query = $db->prepare($sql);
+            $query->execute($params);
+            $result = $query->fetch(PDO::FETCH_ASSOC);
+            return $result['revenue'] ?? 0;
+        } catch (Exception $e) {
+            error_log('Error getting total revenue: ' . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Get orders by status
+     */
+    public function getOrdersByStatus($status)
+    {
+        $db = config::getConnexion();
+        
+        try {
+            $sql = "SELECT c.*, u.username, j.nom as produit_nom 
+                    FROM commande c
+                    LEFT JOIN users u ON c.user_id = u.id
+                    LEFT JOIN jeux j ON c.Produit_id = j.id
+                    WHERE c.statut = :statut
+                    ORDER BY c.Date DESC";
+            
+            $query = $db->prepare($sql);
+            $query->execute(['statut' => $status]);
+            
+            return $query->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            error_log('Error getting orders by status: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Get orders between dates
+     */
+    public function getOrdersBetweenDates($startDate, $endDate)
+    {
+        $db = config::getConnexion();
+        
+        try {
+            $sql = "SELECT c.*, u.username, j.nom as produit_nom 
+                    FROM commande c
+                    LEFT JOIN users u ON c.user_id = u.id
+                    LEFT JOIN jeux j ON c.Produit_id = j.id
+                    WHERE c.Date BETWEEN :start_date AND :end_date
+                    ORDER BY c.Date DESC";
+            
+            $query = $db->prepare($sql);
+            $query->execute([
+                'start_date' => $startDate,
+                'end_date' => $endDate
+            ]);
+            
+            return $query->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            error_log('Error getting orders between dates: ' . $e->getMessage());
             return [];
         }
     }
 }
-
-// Also add this method for getting a single user's order count
-public function getUserOrderCount($userId) {
-    $db = config::connect();
-    
-    try {
-        $sql = "SELECT COUNT(*) as order_count, 
-                       SUM(Total) as total_spent,
-                       MAX(Date) as last_order_date
-                FROM commande 
-                WHERE user_id = :user_id";
-        
-        $query = $db->prepare($sql);
-        $query->bindParam(':user_id', $userId, PDO::PARAM_INT);
-        $query->execute();
-        
-        return $query->fetch(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        error_log("Error in getUserOrderCount: " . $e->getMessage());
-        return ['order_count' => 0, 'total_spent' => 0, 'last_order_date' => null];
-    }
-}
-    public function listCommandes() {
-    $db = config::connect();
-    
-    try {
-        // Try to join with both jeux and users tables
-        $sql = "SELECT c.*, j.nom as jeu_nom, u.username, u.email 
-                FROM commande c 
-                LEFT JOIN jeux j ON c.Produit_id = j.id 
-                LEFT JOIN users u ON c.user_id = u.id 
-                ORDER BY c.Date DESC";
-        
-        $result = $db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
-        
-        // Debug: Check what columns we get
-        if (!empty($result)) {
-            error_log("Columns in result: " . print_r(array_keys($result[0]), true));
-        }
-        
-        return $result;
-        
-    } catch (PDOException $e) {
-        // If join fails, try simpler query
-        error_log("Error in listCommandes: " . $e->getMessage());
-        
-        try {
-            // Try without user join first
-            $sql = "SELECT c.*, j.nom as jeu_nom 
-                    FROM commande c 
-                    LEFT JOIN jeux j ON c.Produit_id = j.id 
-                    ORDER BY c.Date DESC";
-            $result = $db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
-            
-            // Try to add user info separately
-            foreach ($result as &$order) {
-                if (!empty($order['user_id'])) {
-                    $user_sql = "SELECT username, email FROM users WHERE id = :id";
-                    $user_query = $db->prepare($user_sql);
-                    $user_query->execute(['id' => $order['user_id']]);
-                    $user = $user_query->fetch();
-                    
-                    if ($user) {
-                        $order['username'] = $user['username'] ?? null;
-                        $order['email'] = $user['email'] ?? null;
-                    }
-                }
-            }
-            
-            return $result;
-            
-        } catch (PDOException $e2) {
-            // If everything fails, return basic commande data
-            error_log("Fallback error in listCommandes: " . $e2->getMessage());
-            
-            $sql = "SELECT * FROM commande ORDER BY Date DESC";
-            return $db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
-        }
-    }
-}
-
-    // Other methods remain the same...
-    public function addCommande($cmd) {
-        $db = config::connect();
-        $sql = "INSERT INTO commande (Produit_id, Total, quantity, Date, user_id)
-                VALUES (:game, :total, :qty, :date, :user_id)";
-        $query = $db->prepare($sql);
-
-        $query->bindValue(':game', $cmd->getProduitId());
-        $query->bindValue(':total', $cmd->getTotal());
-        $query->bindValue(':qty', $cmd->getQuantity());
-        $query->bindValue(':date', $cmd->getDate());
-        $query->bindValue(':user_id', $cmd->getUserId());
-
-        return $query->execute();
-    }
-
-    public function deleteCommande($id) {
-        $db = config::connect();
-        $sql = "DELETE FROM commande WHERE ID = :id";
-        $query = $db->prepare($sql);
-        $query->bindValue(':id', $id);
-        return $query->execute();
-    }
-    
-    public function getCommande($id) {
-        $db = config::connect();
-
-        try {
-            // First get the game to see column names
-            $test_sql = "SELECT * FROM jeux LIMIT 1";
-            $test_result = $db->query($test_sql)->fetch(PDO::FETCH_ASSOC);
-            $game_columns = array_keys($test_result);
-            
-            // Find the name column
-            $name_column = 'nom'; // default
-            foreach (['nom', 'titre', 'name', 'game_name', 'title'] as $col) {
-                if (in_array($col, $game_columns)) {
-                    $name_column = $col;
-                    break;
-                }
-            }
-            
-            $query = $db->prepare("
-                SELECT c.*, j.$name_column AS jeu
-                FROM commande c
-                JOIN jeux j ON c.Produit_id = j.id
-                WHERE c.id = :id
-            ");
-
-            $query->execute(['id' => $id]);
-            $commande = $query->fetch(PDO::FETCH_ASSOC);
-
-            return $commande;
-
-        } catch (PDOException $e) {
-            // Fallback if join fails
-            $query = $db->prepare("SELECT * FROM commande WHERE id = :id");
-            $query->execute(['id' => $id]);
-            $commande = $query->fetch(PDO::FETCH_ASSOC);
-            
-            if ($commande) {
-                // Get game name separately
-                $game_query = $db->prepare("SELECT * FROM jeux WHERE id = :id");
-                $game_query->execute(['id' => $commande['Produit_id']]);
-                $game = $game_query->fetch();
-                
-                $commande['jeu'] = $game['nom'] ?? $game['titre'] ?? $game['name'] ?? 'Unknown';
-            }
-            
-            return $commande;
-        }
-    }
-    
-    // Update the updateCommande method to include user_id
-    public function updateCommande($commande)
-    {
-        $db = config::connect();
-
-        try {
-            $query = $db->prepare("
-                UPDATE commande 
-                SET Produit_id = :Produit_id,
-                    quantity = :quantity,
-                    Total = :Total,
-                    Date = :Date,
-                    user_id = :user_id
-                WHERE ID = :ID
-            ");
-
-            $query->execute([
-                'Produit_id' => $commande['Produit_id'],
-                'quantity'   => $commande['quantity'],
-                'Total'      => $commande['Total'],
-                'Date'       => $commande['Date'],
-                'user_id'    => $commande['user_id'] ?? null, // Add this
-                'ID'         => $commande['ID']
-            ]);
-
-            return true;
-
-        } catch (PDOException $e) {
-            die('Erreur update Commande : ' . $e->getMessage());
-        }
-    }
-    
-    // In your CommandeController.php class
-public function getStatistics() {
-    $db = config::connect();
-    
-    $stats = [
-        'total_orders' => 0,
-        'total_revenue' => 0,
-        'avg_order_value' => 0,
-        'pending_orders' => 0,
-        'completed_orders' => 0,
-        'orders_by_month' => [],
-        'top_users' => [],
-        'top_games' => []
-    ];
-
-    try {
-        // 1. Total number of orders
-        $query = $db->query("SELECT COUNT(*) as total FROM commande");
-        $result = $query->fetch(PDO::FETCH_ASSOC);
-        $stats['total_orders'] = $result['total'] ?? 0;
-
-        // 2. Total revenue (sum of all totals)
-        $query = $db->query("SELECT SUM(Total) as revenue FROM commande");
-        $result = $query->fetch(PDO::FETCH_ASSOC);
-        $stats['total_revenue'] = $result['revenue'] ?? 0;
-
-        // 3. Average order value
-        if ($stats['total_orders'] > 0) {
-            $stats['avg_order_value'] = round($stats['total_revenue'] / $stats['total_orders'], 2);
-        }
-
-        // 4. Pending orders (if you have a status column)
-        // If you don't have status, you can remove this or add one
-        $query = $db->query("SELECT COUNT(*) as pending FROM commande WHERE statut = 'pending' OR statut IS NULL");
-        $result = $query->fetch(PDO::FETCH_ASSOC);
-        $stats['pending_orders'] = $result['pending'] ?? 0;
-
-        // 5. Completed orders (if you have a status column)
-        $query = $db->query("SELECT COUNT(*) as completed FROM commande WHERE statut = 'completed'");
-        $result = $query->fetch(PDO::FETCH_ASSOC);
-        $stats['completed_orders'] = $result['completed'] ?? 0;
-
-        // 6. Orders by month (last 6 months)
-        $query = $db->query("
-            SELECT 
-                DATE_FORMAT(Date, '%Y-%m') as month,
-                COUNT(*) as order_count,
-                SUM(Total) as monthly_revenue
-            FROM commande 
-            WHERE Date >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
-            GROUP BY DATE_FORMAT(Date, '%Y-%m')
-            ORDER BY month DESC
-        ");
-        $stats['orders_by_month'] = $query->fetchAll(PDO::FETCH_ASSOC);
-
-        // 7. Top users by total spent (only if user_id is populated)
-        $query = $db->query("
-            SELECT 
-                u.username,
-                u.email,
-                COUNT(c.id) as order_count,
-                SUM(c.Total) as total_spent
-            FROM commande c
-            LEFT JOIN users u ON c.user_id = u.id
-            GROUP BY c.user_id
-            HAVING c.user_id IS NOT NULL
-            ORDER BY total_spent DESC
-            LIMIT 5
-        ");
-        $stats['top_users'] = $query->fetchAll(PDO::FETCH_ASSOC);
-
-        // 8. Top games by orders (most popular games)
-        $query = $db->query("
-            SELECT 
-                j.nom as game_name,
-                COUNT(c.id) as times_ordered,
-                SUM(c.quantity) as total_quantity,
-                SUM(c.Total) as total_revenue
-            FROM commande c
-            JOIN jeux j ON c.Produit_id = j.id
-            GROUP BY c.Produit_id
-            ORDER BY times_ordered DESC
-            LIMIT 5
-        ");
-        $stats['top_games'] = $query->fetchAll(PDO::FETCH_ASSOC);
-
-        // 9. Today's orders
-        $query = $db->query("
-            SELECT COUNT(*) as today_orders, 
-                   SUM(Total) as today_revenue 
-            FROM commande 
-            WHERE DATE(Date) = CURDATE()
-        ");
-        $today = $query->fetch(PDO::FETCH_ASSOC);
-        $stats['today_orders'] = $today['today_orders'] ?? 0;
-        $stats['today_revenue'] = $today['today_revenue'] ?? 0;
-
-        // 10. This week's orders
-        $query = $db->query("
-            SELECT COUNT(*) as week_orders, 
-                   SUM(Total) as week_revenue 
-            FROM commande 
-            WHERE WEEK(Date) = WEEK(CURDATE())
-            AND YEAR(Date) = YEAR(CURDATE())
-        ");
-        $week = $query->fetch(PDO::FETCH_ASSOC);
-        $stats['week_orders'] = $week['week_orders'] ?? 0;
-        $stats['week_revenue'] = $week['week_revenue'] ?? 0;
-
-        // 11. This month's orders
-        $query = $db->query("
-            SELECT COUNT(*) as month_orders, 
-                   SUM(Total) as month_revenue 
-            FROM commande 
-            WHERE MONTH(Date) = MONTH(CURDATE())
-            AND YEAR(Date) = YEAR(CURDATE())
-        ");
-        $month = $query->fetch(PDO::FETCH_ASSOC);
-        $stats['month_orders'] = $month['month_orders'] ?? 0;
-        $stats['month_revenue'] = $month['month_revenue'] ?? 0;
-
-    } catch (PDOException $e) {
-        error_log("Error getting statistics: " . $e->getMessage());
-        // Return empty stats on error
-    }
-
-    return $stats;
-}
-
-// You might also want a simpler function for dashboard stats
-public function getDashboardStats() {
-    $db = config::connect();
-    
-    $stats = [
-        'total_orders' => 0,
-        'total_revenue' => 0,
-        'today_orders' => 0,
-        'today_revenue' => 0,
-        'avg_order_value' => 0
-    ];
-
-    try {
-        // Total orders
-        $query = $db->query("SELECT COUNT(*) as total FROM commande");
-        $result = $query->fetch();
-        $stats['total_orders'] = $result['total'] ?? 0;
-
-        // Total revenue
-        $query = $db->query("SELECT SUM(Total) as revenue FROM commande");
-        $result = $query->fetch();
-        $stats['total_revenue'] = $result['revenue'] ?? 0;
-
-        // Today's orders
-        $query = $db->query("
-            SELECT COUNT(*) as today_orders, 
-                   SUM(Total) as today_revenue 
-            FROM commande 
-            WHERE DATE(Date) = CURDATE()
-        ");
-        $result = $query->fetch();
-        $stats['today_orders'] = $result['today_orders'] ?? 0;
-        $stats['today_revenue'] = $result['today_revenue'] ?? 0;
-
-        // Average order value
-        if ($stats['total_orders'] > 0) {
-            $stats['avg_order_value'] = round($stats['total_revenue'] / $stats['total_orders'], 2);
-        }
-
-    } catch (PDOException $e) {
-        error_log("Dashboard stats error: " . $e->getMessage());
-    }
-
-    return $stats;
-}
-
-// Function to get recent orders for dashboard
-public function getRecentOrders($limit = 5) {
-    $db = config::connect();
-    
-    try {
-        $query = $db->prepare("
-            SELECT c.*, j.nom as game_name, u.username, u.email
-            FROM commande c
-            LEFT JOIN jeux j ON c.Produit_id = j.id
-            LEFT JOIN users u ON c.user_id = u.id
-            ORDER BY c.Date DESC
-            LIMIT :limit
-        ");
-        $query->bindValue(':limit', $limit, PDO::PARAM_INT);
-        $query->execute();
-        
-        return $query->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        error_log("Error getting recent orders: " . $e->getMessage());
-        return [];
-    }
-}
-}
+?>
