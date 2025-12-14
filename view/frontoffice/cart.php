@@ -1,3 +1,4 @@
+
 <?php
 session_start();
 require_once '../../config.php';
@@ -65,9 +66,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ];
                     }
                     
-                    $success_message = "Jeu ajouté au panier avec succès!";
+                    $_SESSION['cart_success'] = "Jeu ajouté au panier avec succès!";
                 } else {
-                    $error_message = "Ce jeu n'est plus disponible en stock.";
+                    $_SESSION['cart_error'] = "Ce jeu n'est plus disponible en stock.";
                 }
             }
             break;
@@ -92,14 +93,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $index = (int)$_POST['index'];
                 if (isset($_SESSION['cart'][$index])) {
                     array_splice($_SESSION['cart'], $index, 1);
-                    $success_message = "Jeu retiré du panier.";
                 }
             }
             break;
             
         case 'clear_cart':
             $_SESSION['cart'] = [];
-            $success_message = "Panier vidé avec succès.";
             break;
             
         case 'checkout':
@@ -108,11 +107,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 header('Location: checkout.php');
                 exit;
             } elseif (!$isLoggedIn) {
-                $error_message = "Veuillez vous connecter pour finaliser la commande.";
+                $_SESSION['cart_error'] = "Veuillez vous connecter pour finaliser la commande.";
                 header('Location: login.php?redirect=cart.php');
                 exit;
             } else {
-                $error_message = "Votre panier est vide.";
+                $_SESSION['cart_error'] = "Votre panier est vide.";
             }
             break;
     }
@@ -124,8 +123,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Calculate cart totals
 $cartItems = $_SESSION['cart'] ?? [];
 $subtotal = 0;
-$taxRate = 0.20;
-$shipping = count($cartItems) > 0 ? 5.00 : 0;
+$taxRate = 0.20; // 20% TVA
+$shipping = count($cartItems) > 0 ? 5.00 : 0; // 5€ shipping
 
 foreach ($cartItems as $item) {
     $subtotal += $item['price'] * $item['quantity'];
@@ -580,6 +579,7 @@ $total = $subtotal + $tax + $shipping;
             border-top: 2px solid var(--secondary-purple);
             margin-top: 1rem;
             padding-top: 1rem;
+            font-weight: bold;
         }
         
         .summary-total .summary-label {
@@ -605,6 +605,17 @@ $total = $subtotal + $tax + $shipping;
             font-size: 0.7rem;
             cursor: pointer;
             border-radius: 4px;
+            transition: all 0.3s;
+        }
+        
+        .checkout-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(189, 0, 255, 0.3);
+        }
+        
+        .checkout-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
         
         .empty-cart {
@@ -613,6 +624,7 @@ $total = $subtotal + $tax + $shipping;
             padding: 3rem;
             background: rgba(255, 255, 255, 0.05);
             border: 2px solid var(--border-color);
+            border-radius: 8px;
         }
         
         .empty-cart-title {
@@ -653,7 +665,7 @@ $total = $subtotal + $tax + $shipping;
         }
         
         /* Messages */
-        .message {
+        .cart-message {
             padding: 1rem;
             margin-bottom: 1.5rem;
             border-radius: 4px;
@@ -662,13 +674,13 @@ $total = $subtotal + $tax + $shipping;
             font-size: 1rem;
         }
         
-        .success {
+        .cart-success {
             background: rgba(0, 255, 65, 0.1);
             border: 2px solid var(--primary-green);
             color: var(--primary-green);
         }
         
-        .error {
+        .cart-error {
             background: rgba(255, 0, 110, 0.1);
             border: 2px solid var(--danger-red);
             color: var(--danger-red);
@@ -716,18 +728,52 @@ $total = $subtotal + $tax + $shipping;
             <div class="nav-right">
                 <?php if ($isLoggedIn): ?>
                     <div class="user-menu">
-                        <a href="profile.php" style="text-decoration: none;">
-                            <button class="user-profile-btn">
-                                <div class="user-avatar">
-                                    <?php if ($profilePicture && file_exists("../../uploads/" . $profilePicture)): ?>
-                                        <img src="../../uploads/<?php echo htmlspecialchars($profilePicture); ?>" alt="Profile">
-                                    <?php else: ?>
-                                        <?php echo strtoupper(substr($username, 0, 2)); ?>
-                                    <?php endif; ?>
-                                </div>
-                                <span class="user-name"><?php echo htmlspecialchars($username); ?></span>
-                            </button>
-                        </a>
+                        <button class="user-profile-btn">
+                            <div class="user-avatar">
+                                <?php if ($profilePicture && file_exists("../../uploads/" . $profilePicture)): ?>
+                                    <img src="../../uploads/<?php echo htmlspecialchars($profilePicture); ?>" alt="Profile">
+                                <?php else: ?>
+                                    <?php echo strtoupper(substr($username, 0, 2)); ?>
+                                <?php endif; ?>
+                            </div>
+                            <span class="user-name"><?php echo htmlspecialchars($username); ?></span>
+                            <span class="dropdown-icon">▼</span>
+                        </button>
+                        
+                        <div class="user-dropdown">
+                            <div class="dropdown-header">
+                                <div class="dropdown-header-title">WELCOME BACK</div>
+                                <div class="dropdown-header-subtitle"><?php echo htmlspecialchars($username); ?></div>
+                            </div>
+                            <ul class="dropdown-menu-list">
+                                <li class="dropdown-menu-item">
+                                    <a href="profile.php" class="dropdown-menu-link">
+                                        <span class="dropdown-icon-left">👤</span>
+                                        MON PROFIL
+                                    </a>
+                                </li>
+                                <li class="dropdown-menu-item">
+                                    <a href="my-orders.php" class="dropdown-menu-link">
+                                        <span class="dropdown-icon-left">🛒</span>
+                                        MES COMMANDES
+                                    </a>
+                                </li>
+                                <?php if ($role === 'admin'): ?>
+                                <li class="dropdown-menu-item">
+                                    <a href="../backoffice/dashboard.php" class="dropdown-menu-link admin">
+                                        <span class="dropdown-icon-left">⚙</span>
+                                        ADMIN DASHBOARD
+                                    </a>
+                                </li>
+                                <?php endif; ?>
+                                <li class="dropdown-menu-item">
+                                    <a href="#" class="dropdown-menu-link logout" id="logoutBtn">
+                                        <span class="dropdown-icon-left">🚪</span>
+                                        DECONNEXION
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
                     </div>
                 <?php else: ?>
                     <a href="login.php" style="text-decoration: none;">
@@ -752,15 +798,15 @@ $total = $subtotal + $tax + $shipping;
             <p class="cart-subtitle">Votre collection en attente</p>
         </header>
         
-        <?php if (isset($success_message)): ?>
-            <div class="message success">
-                <?php echo htmlspecialchars($success_message); ?>
+        <?php if (isset($_SESSION['cart_success'])): ?>
+            <div class="cart-message cart-success">
+                <?php echo htmlspecialchars($_SESSION['cart_success']); unset($_SESSION['cart_success']); ?>
             </div>
         <?php endif; ?>
         
-        <?php if (isset($error_message)): ?>
-            <div class="message error">
-                <?php echo htmlspecialchars($error_message); ?>
+        <?php if (isset($_SESSION['cart_error'])): ?>
+            <div class="cart-message cart-error">
+                <?php echo htmlspecialchars($_SESSION['cart_error']); unset($_SESSION['cart_error']); ?>
             </div>
         <?php endif; ?>
         
@@ -809,7 +855,7 @@ $total = $subtotal + $tax + $shipping;
                                     
                                     <input type="number" name="quantity" value="<?php echo $item['quantity']; ?>" 
                                            min="1" max="<?php echo $game['stock']; ?>" 
-                                           class="quantity-input">
+                                           class="quantity-input" onchange="this.form.submit()">
                                            
                                     <button type="submit" name="quantity" value="<?php echo min($game['stock'], $item['quantity'] + 1); ?>" 
                                             class="quantity-btn">+</button>
@@ -831,9 +877,9 @@ $total = $subtotal + $tax + $shipping;
                             </button>
                         </a>
                         
-                        <form method="POST" action="cart.php">
+                        <form method="POST" action="cart.php" onsubmit="return confirm('Vider tout le panier?')">
                             <input type="hidden" name="action" value="clear_cart">
-                            <button type="submit" class="clear-cart-btn" onclick="return confirm('Vider tout le panier?')">VIDER LE PANIER</button>
+                            <button type="submit" class="clear-cart-btn">VIDER LE PANIER</button>
                         </form>
                     </div>
                 </div>
@@ -981,5 +1027,39 @@ $total = $subtotal + $tax + $shipping;
             </div>
         </div>
     </footer>
+
+    <!-- Scroll to Top Button -->
+    <button class="scroll-top" id="scrollTop">
+        <span>▲</span>
+    </button>
+
+    <script src="script.js"></script>
+    <script>
+        <?php if ($isLoggedIn): ?>
+        document.getElementById('logoutBtn').addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            if (confirm('Êtes-vous sûr de vouloir vous déconnecter?')) {
+                const formData = new FormData();
+                formData.append('action', 'logout');
+                
+                fetch('../../controller/user_controller.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        window.location.href = 'index.php';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    window.location.href = 'index.php';
+                });
+            }
+        });
+        <?php endif; ?>
+    </script>
 </body>
 </html>
