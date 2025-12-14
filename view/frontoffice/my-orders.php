@@ -386,7 +386,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_action'])) {
             border: 2px solid var(--border-color);
         }
     </style>
-    <style>
+    <style> 
         /* Main container */
         .main-container {
             max-width: 1200px;

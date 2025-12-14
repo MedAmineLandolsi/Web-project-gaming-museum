@@ -100,54 +100,127 @@ public function checkStock($game_id, $requested_quantity) {
 
 
   
-    function addgame(jeux $game)
-    {
-        $sql = "INSERT INTO jeux (nom, description, prix, stock, categorie, image) 
-            VALUES (:nom, :description, :prix, :stock, :categorie, :image)";
+   function addgame(jeux $game)
+{
+    $sql = "INSERT INTO jeux (nom, description, prix, stock, categorie, image, trailer_url, rarity, `condition`, edition, estimated_value, collector_notes) 
+            VALUES (:nom, :description, :prix, :stock, :categorie, :image, :trailer_url, :rarity, :condition, :edition, :estimated_value, :collector_notes)";
 
-        $db = config::getConnexion();
+    $db = config::getConnexion();
 
-        try {
-            $query = $db->prepare($sql);
-            $query->execute([
-                'nom'         => $game->getnom(),
-                'description' => $game->getdescription(),
-                'prix'        => $game->getprix(),
-                'stock'       => $game->getstock(),      
-                'categorie'   => $game->getcategorie(),
-                'image'       => $game->getImage(),
+    try {
+        $query = $db->prepare($sql);
+        $query->execute([
+            'nom'             => $game->getnom(),
+            'description'     => $game->getdescription(),
+            'prix'            => $game->getprix(),
+            'stock'           => $game->getstock(),      
+            'categorie'       => $game->getcategorie(),
+            'image'           => $game->getImage(),
+            'trailer_url'     => $game->getTrailerUrl(),
+            'rarity'          => $game->getRarity(),
+            'condition'       => $game->getCondition(),
+            'edition'         => $game->getEdition(),
+            'estimated_value' => $game->getEstimatedValue(),
+            'collector_notes' => $game->getCollectorNotes()
         ]);
     } catch (Exception $e) {
         echo 'Error: ' . $e->getMessage();
     }
-    }
+}
      function updategame($game, $id)
-    {
-        var_dump($game);
-        try {
-            $db = config::getConnexion();
+{
+    try {
+        $db = config::getConnexion();
 
-         $query = $db->prepare(
+        $query = $db->prepare(
             'UPDATE jeux SET 
                 nom = :nom,
                 description = :description,
                 prix = :prix,
-                categorie = :categorie
+                categorie = :categorie,
+                trailer_url = :trailer_url,
+                rarity = :rarity,
+                `condition` = :condition,
+                edition = :edition,
+                estimated_value = :estimated_value,
+                collector_notes = :collector_notes
             WHERE id = :id'
         );
 
         $query->execute([
-            'id' => $id,
-            'nom' => $game->getnom(),
-            'description' => $game->getdescription(),
-            'prix' => $game->getprix(),
-            'categorie' => $game->getcategorie(),
+            'id'              => $id,
+            'nom'             => $game->getnom(),
+            'description'     => $game->getdescription(),
+            'prix'            => $game->getprix(),
+            'categorie'       => $game->getcategorie(),
+            'trailer_url'     => $game->getTrailerUrl(),
+            'rarity'          => $game->getRarity(),
+            'condition'       => $game->getCondition(),
+            'edition'         => $game->getEdition(),
+            'estimated_value' => $game->getEstimatedValue(),
+            'collector_notes' => $game->getCollectorNotes()
         ]);
 
         echo $query->rowCount() . " records UPDATED successfully <br>";
     } catch (PDOException $e) {
         echo "Error: " . $e->getMessage(); 
     }
+}
+public function getGameScreenshots($game_id) {
+    $db = config::getConnexion();
+    
+    try {
+        $sql = "SELECT * FROM game_screenshots WHERE game_id = :game_id ORDER BY sort_order ASC";
+        $query = $db->prepare($sql);
+        $query->execute(['game_id' => $game_id]);
+        return $query->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        error_log("Error fetching screenshots: " . $e->getMessage());
+        return [];
+    }
+}
+
+public function getRarityDisplay($rarity) {
+    $rarities = [
+        'common' => 'Commun',
+        'rare' => 'Rare',
+        'very_rare' => 'Très Rare',
+        'collector' => "Édition Collector",
+        'museum_piece' => 'Pièce de Musée'
+    ];
+    
+    return $rarities[$rarity] ?? $rarity;
+}
+
+public function getConditionDisplay($condition) {
+    $conditions = [
+        'new' => 'Neuf (scellé)',
+        'like_new' => 'Comme neuf',
+        'very_good' => 'Très bon état',
+        'good' => 'Bon état',
+        'acceptable' => 'État acceptable'
+    ];
+    
+    return $conditions[$condition] ?? $condition;
+}
+public function extractYoutubeId($url) {
+    if (empty($url)) return '';
+    
+    // Handle various YouTube URL formats
+    $patterns = [
+        '/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/',
+        '/youtube\.com\/embed\/([^"&?\/\s]{11})/',
+        '/youtube\.com\/v\/([^"&?\/\s]{11})/',
+        '/youtu\.be\/([^"&?\/\s]{11})/'
+    ];
+    
+    foreach ($patterns as $pattern) {
+        if (preg_match($pattern, $url, $matches)) {
+            return $matches[1];
+        }
+    }
+    
+    return '';
 }
 
     function deletegame($id)
