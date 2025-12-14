@@ -264,7 +264,7 @@ $current_page = 'profile.php';
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="games.php">
+                    <a href="addgame.php">
                         <span class="nav-icon">🎮</span>
                         <span class="nav-text">JEUX</span>
                     </a>
