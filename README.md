@@ -40,8 +40,8 @@ Make sure you have the following tools installed on your machine:
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/your-username/gaming-museum.git
-cd gaming-museum
+git clone https://github.com/your-username/web-project-gaming-museum.git
+cd web-project-gaming-museum
 ```
 
 2. Configure the database environment:
@@ -57,7 +57,7 @@ mysql -u root -p gaming_museum < database/schema.sql
 
 3. Configure connection settings:
 
-* Open the file `config/database.php`
+* Open the file `config.php`
 * Modify the connection parameters according to your configuration:
 
 ```php
