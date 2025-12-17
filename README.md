@@ -61,10 +61,27 @@ mysql -u root -p gaming_museum < database/schema.sql
 * Modify the connection parameters according to your configuration:
 
 ```php
-define('DB_HOST', 'localhost');
-define('DB_USER', 'root');
-define('DB_PASS', '');
-define('DB_NAME', 'gaming_museum');
+<?php
+  class config {
+    private static $pdo = NULL;
+
+    public static function getConnexion() {
+      if (!isset(self::$pdo)) {
+        try{
+
+          self::$pdo = new PDO('mysql:host=localhost;dbname=gaming_museum1', 'root', '', // Insert your domain, database name, username and password here
+          [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+        ]);
+        }catch(Exception $e){
+          die('Erreur: '.$e->getMessage());
+        }
+      }
+      return self::$pdo;
+    }
+  } 
+?>
 ```
 
 4. Install dependencies (if applicable):
