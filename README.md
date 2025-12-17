@@ -1,4 +1,4 @@
-#  Gaming Museum - Interactive Digital Platform
+#  Gaming Museum, Our web project
 
 ##  Project Description
 
@@ -226,7 +226,7 @@ A vibrant social space where gaming enthusiasts can connect, share memories, and
   - Personalized feed based on interests
 - **Gaming Network**: Connect with other gamers and build your gaming circle
 
-### 🛠️ Visitor Support & Feedback System
+### Visitor Support & Feedback System
 **Module Lead: Nedra Ouihibi**
 
 Intelligent complaint and feedback management system ensuring excellent visitor experience.
