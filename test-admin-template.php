@@ -1,7 +1,7 @@
 <?php
 /**
  * Fichier de test pour vérifier que le template admin s'affiche correctement
- * Accédez à : http://localhost/ProjetWeb/test-admin-template.php
+ * Accédez à : http://localhost/projet-web/ProjetWeb/test-admin-template.php
  */
 ?>
 <!DOCTYPE html>
@@ -13,7 +13,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/ProjetWeb/assets/css/admin.css">
+    <link rel="stylesheet" href="/projet-web/ProjetWeb/assets/css/admin.css">
     <style>
         .test-info {
             position: fixed;

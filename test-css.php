@@ -1,7 +1,7 @@
 <?php
 /**
  * Fichier de test pour vérifier que les CSS sont bien chargés
- * Accédez à : http://localhost/ProjetWeb/test-css.php
+ * Accédez à : http://localhost/projet-web/ProjetWeb/test-css.php
  */
 ?>
 <!DOCTYPE html>
@@ -13,7 +13,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/ProjetWeb/assets/css/admin.css">
+    <link rel="stylesheet" href="/projet-web/ProjetWeb/assets/css/admin.css">
     <style>
         body {
             padding: 2rem;
@@ -85,7 +85,7 @@
     
     <div class="test-box">
         <h2>Chemins à utiliser</h2>
-        <p><strong>Chemin absolu (recommandé):</strong> <code>/ProjetWeb/assets/css/admin.css</code></p>
+        <p><strong>Chemin absolu (recommandé):</strong> <code>/projet-web/ProjetWeb/assets/css/admin.css</code></p>
         <p><strong>Chemin relatif depuis View/back/:</strong> <code>../../assets/css/admin.css</code></p>
         <p><strong>Racine du projet:</strong> <code><?= __DIR__ ?></code></p>
     </div>

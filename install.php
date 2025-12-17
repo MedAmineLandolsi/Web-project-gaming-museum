@@ -1,7 +1,7 @@
 <?php
 /**
  * Script d'installation automatique de la base de données
- * Accédez à ce fichier via : http://localhost/ProjetWeb/install.php
+ * Accédez à ce fichier via : http://localhost/projet-web/ProjetWeb/install.php
  */
 
 require_once 'config/database.php';

@@ -10,13 +10,31 @@ $langUrl = function (string $nextLang): string {
     $params['lang'] = $nextLang;
     return 'index.php?' . http_build_query($params);
 };
+
+$translateType = function (string $typeRaw): string {
+    $typeKeyByValue = [
+        'problème de commande' => 'type_order_issue',
+        'produit défectueux' => 'type_defective_product',
+        'retard de livraison' => 'type_delivery_delay',
+        'service client' => 'type_customer_service',
+        'autre' => 'type_other',
+    ];
+
+    $normalized = strtolower(trim($typeRaw));
+    foreach ($typeKeyByValue as $value => $key) {
+        if ($normalized === strtolower($value)) {
+            return t($key);
+        }
+    }
+    return $typeRaw;
+};
 ?>
 <!DOCTYPE html>
 <html lang="<?= htmlspecialchars($lang, ENT_QUOTES) ?>" dir="<?= htmlspecialchars($dir, ENT_QUOTES) ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= htmlspecialchars(t('app_name') . ' - ' . t('submit_title'), ENT_QUOTES) ?></title>
+    <title><?= htmlspecialchars(t('app_name') . ' - ' . t('details_title'), ENT_QUOTES) ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
@@ -37,8 +55,12 @@ $langUrl = function (string $nextLang): string {
             <div class="nav-center">
                 <ul class="nav-menu">
                     <li><a href="../index.php" class="home-link"><?= htmlspecialchars(t('home')) ?></a></li>
-                    <li><a href="index.php?action=front" class="active"><?= htmlspecialchars(t('new_claim')) ?></a></li>
+                    <li><a href="index.php?action=front"><?= htmlspecialchars(t('new_claim')) ?></a></li>
                     <li><a href="index.php?action=front&method=historique"><?= htmlspecialchars(t('history')) ?></a></li>
+                    <?php if (isset($reclamation) && $reclamation): ?>
+                    <li><a href="index.php?action=front&method=details&id=<?= $reclamation['id'] ?>" class="active"><?= htmlspecialchars(t('details')) ?></a></li>
+                    <li><a href="index.php?action=front&method=edit&id=<?= $reclamation['id'] ?>"><?= htmlspecialchars(t('edit')) ?></a></li>
+                    <?php endif; ?>
                 </ul>
             </div>
 
@@ -119,91 +141,102 @@ $langUrl = function (string $nextLang): string {
 
     <div class="container">
         <div class="main-content">
-            <h1 class="page-title"><?= htmlspecialchars(t('submit_title')) ?></h1>
-
-            <div class="form-container">
-                <div class="ai-assist-card" data-ai-assist data-ai-endpoint="<?= htmlspecialchars(url('api/ai-assist.php')) ?>" data-lang="<?= htmlspecialchars($lang) ?>">
-                    <div class="ai-assist-header">
-                        <h2 class="ai-assist-title"><?= htmlspecialchars(t('ai_title')) ?></h2>
-                        <p class="ai-assist-subtitle"><?= htmlspecialchars(t('ai_subtitle')) ?></p>
+            <?php if (isset($reclamation) && $reclamation): ?>
+                <h1 class="page-title"><?= htmlspecialchars(t('details_title')) ?></h1>
+                
+                <div class="details-card">
+                    <div class="details-grid">
+                        <div class="detail-item">
+                            <span class="detail-label"><?= htmlspecialchars(t('date_time_label')) ?></span>
+                            <div class="detail-value">
+                                <?= isset($reclamation['date_creation']) ? date('d/m/Y', strtotime($reclamation['date_creation'])) . ' à ' . date('H:i:s', strtotime($reclamation['date_creation'])) : htmlspecialchars(t('datetime_unavailable')) ?>
+                            </div>
+                        </div>
+                        
+                        <div class="detail-item">
+                            <span class="detail-label"><?= htmlspecialchars(t('client_label')) ?></span>
+                            <div class="detail-value"><?= htmlspecialchars($reclamation['nomClient'] ?? '') ?></div>
+                        </div>
+                        
+                        <div class="detail-item">
+                            <span class="detail-label"><?= htmlspecialchars(t('email_short_label')) ?></span>
+                            <div class="detail-value"><?= htmlspecialchars($reclamation['emailClient'] ?? '') ?></div>
+                        </div>
+                        
+                        <div class="detail-item">
+                            <span class="detail-label"><?= htmlspecialchars(t('type_short_label')) ?></span>
+                            <div class="detail-value"><?= htmlspecialchars($translateType((string)($reclamation['typeReclamation'] ?? ''))) ?></div>
+                        </div>
+                        
+                        <div class="detail-item">
+                            <span class="detail-label"><?= htmlspecialchars(t('status_label')) ?></span>
+                            <div class="detail-value">
+                                <span class="status <?= isset($reponse) && $reponse ? 'status-resolved' : 'status-pending' ?>">
+                                    <?= isset($reponse) && $reponse ? htmlspecialchars(t('status_answered')) : htmlspecialchars(t('status_pending')) ?>
+                                </span>
+                            </div>
+                        </div>
                     </div>
-
-                    <div class="ai-assist-body">
-                        <textarea id="aiAssistInput" class="ai-assist-textarea" rows="4" placeholder="<?= htmlspecialchars(t('ai_placeholder'), ENT_QUOTES) ?>"></textarea>
-                        <div class="ai-assist-actions">
-                            <button type="button" class="btn btn-secondary ai-assist-btn" id="aiAssistBtn">
-                                <?= htmlspecialchars(t('ai_button')) ?>
-                            </button>
-                            <div class="ai-assist-status" id="aiAssistStatus"
-                                 data-loading="<?= htmlspecialchars(t('ai_loading'), ENT_QUOTES) ?>"
-                                 data-done="<?= htmlspecialchars(t('ai_done'), ENT_QUOTES) ?>"
-                                 data-error="<?= htmlspecialchars(t('ai_error'), ENT_QUOTES) ?>"
-                                 data-min="<?= htmlspecialchars(t('ai_min'), ENT_QUOTES) ?>"></div>
+                    
+                    <div class="detail-full">
+                        <span class="detail-label"><?= htmlspecialchars(t('title_short_label')) ?></span>
+                        <div class="detail-value detail-title"><?= htmlspecialchars($reclamation['titre'] ?? '') ?></div>
+                    </div>
+                    
+                    <div class="detail-full">
+                        <span class="detail-label"><?= htmlspecialchars(t('description_short_label')) ?></span>
+                        <div class="detail-value detail-description">
+                            <?= nl2br(htmlspecialchars($reclamation['description'] ?? '')) ?>
                         </div>
                     </div>
                 </div>
-
-                <form method="POST" action="index.php?action=front&method=add" id="reclamationForm" novalidate data-validate="reclamation">
-                    <div class="form-group">
-                        <label class="form-label"><?= htmlspecialchars(t('name_label')) ?></label>
-                        <input type="text" name="nomClient" id="nomClient" placeholder="<?= htmlspecialchars(t('name_placeholder'), ENT_QUOTES) ?>" />
-                        <div class="error-message" id="nomError"><?= htmlspecialchars(t('name_error')) ?></div>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label class="form-label"><?= htmlspecialchars(t('email_label')) ?></label>
-                        <input type="text" name="emailClient" id="emailClient" placeholder="<?= htmlspecialchars(t('email_placeholder'), ENT_QUOTES) ?>" />
-                        <div class="error-message" id="emailError"><?= htmlspecialchars(t('email_error')) ?></div>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label class="form-label"><?= htmlspecialchars(t('type_label')) ?></label>
-                        <select name="typeReclamation" id="typeReclamation">
-                            <option value=""><?= htmlspecialchars(t('type_placeholder')) ?></option>
-                            <option value="problème de commande"><?= htmlspecialchars(t('type_order_issue')) ?></option>
-                            <option value="produit défectueux"><?= htmlspecialchars(t('type_defective_product')) ?></option>
-                            <option value="retard de livraison"><?= htmlspecialchars(t('type_delivery_delay')) ?></option>
-                            <option value="service client"><?= htmlspecialchars(t('type_customer_service')) ?></option>
-                            <option value="autre"><?= htmlspecialchars(t('type_other')) ?></option>
-                        </select>
-                        <div class="error-message" id="typeError"><?= htmlspecialchars(t('type_error')) ?></div>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label class="form-label"><?= htmlspecialchars(t('title_label')) ?></label>
-                        <input type="text" name="titre" id="titre" placeholder="<?= htmlspecialchars(t('title_placeholder'), ENT_QUOTES) ?>" />
-                        <div class="error-message" id="titreError"><?= htmlspecialchars(t('title_error')) ?></div>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label class="form-label"><?= htmlspecialchars(t('description_label')) ?></label>
-                        <textarea name="description" id="description" placeholder="<?= htmlspecialchars(t('description_placeholder'), ENT_QUOTES) ?>"></textarea>
-                        <div class="error-message" id="descriptionError"><?= htmlspecialchars(t('description_error')) ?></div>
-                    </div>
-                    
-                    <button type="submit" class="btn btn-primary"><?= htmlspecialchars(t('send')) ?></button>
-                </form>
                 
-                <div class="form-footer">
-                    <p><?= htmlspecialchars(t('already_submitted')) ?></p>
-                    <a href="index.php?action=front&method=historique" class="btn btn-secondary">
-                        <?= htmlspecialchars(t('see_history')) ?>
-                    </a>
+                <div class="response-card <?= isset($reponse) && $reponse ? 'has-response' : 'no-response' ?>">
+                    <?php if (isset($reponse) && $reponse): ?>
+                        <div class="response-header">
+                            <h3><?= htmlspecialchars(t('team_response_title')) ?></h3>
+                            <div class="response-info">
+                                <?= htmlspecialchars(t('sent_on')) ?> <strong><?= htmlspecialchars($reponse['dateReponse'] ?? '') ?></strong>
+                                <?= htmlspecialchars(t('at_time')) ?> <strong><?= htmlspecialchars($reponse['heureReponse'] ?? '') ?></strong>
+                                <?= htmlspecialchars(t('by')) ?> <strong><?= htmlspecialchars($reponse['adminName'] ?? t('administrator_fallback')) ?></strong>
+                            </div>
+                        </div>
+                        
+                        <div class="response-content">
+                            <?= nl2br(htmlspecialchars($reponse['message'] ?? '')) ?>
+                        </div>
+                    <?php else: ?>
+                        <div class="waiting-response">
+                            <div class="waiting-icon">🕐</div>
+                            <h3><?= htmlspecialchars(t('waiting_response_title')) ?></h3>
+                            <p><?= htmlspecialchars(t('waiting_response_desc1')) ?></p>
+                            <p><?= htmlspecialchars(t('waiting_response_desc2')) ?></p>
+                        </div>
+                    <?php endif; ?>
                 </div>
-            </div>
+                
+                <div class="details-actions">
+                    <a href="index.php?action=front" class="btn btn-primary">🏠 <?= htmlspecialchars(t('home')) ?></a>
+                    <a href="index.php?action=front&method=historique" class="btn btn-secondary">📋 <?= htmlspecialchars(t('history')) ?></a>
+                    <a href="index.php?action=front&method=edit&id=<?= $reclamation['id'] ?>" class="btn btn-secondary">✏️ <?= htmlspecialchars(t('edit')) ?></a>
+                </div>
+            <?php else: ?>
+                <div class="not-found">
+                    <h1>❌ <?= htmlspecialchars(t('not_found_title')) ?></h1>
+                    <p><?= htmlspecialchars(t('not_found_desc')) ?></p>
+                    <a href="index.php?action=front" class="btn btn-primary">🏠 <?= htmlspecialchars(t('back_home')) ?></a>
+                    <a href="index.php?action=front&method=historique" class="btn btn-secondary">📋 <?= htmlspecialchars(t('see_history_short')) ?></a>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 
     <div class="footer">
         <div class="container">
-            <p><?= htmlspecialchars(t('footer_text')) ?></p>
+            <p><?= htmlspecialchars(t('footer_short')) ?></p>
         </div>
     </div>
 
     <div class="footer-bar-animation"></div>
-    
-    <script src="<?= asset('assets/js/front.js') ?>"></script>
-    <script src="<?= asset('assets/js/forms-validation.js') ?>"></script>
-    <script src="<?= asset('assets/js/ai-assist.js') ?>"></script>
 </body>
 </html>
