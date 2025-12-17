@@ -945,9 +945,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_action'])) {
                 <ul class="nav-menu">
                     <li><a href="index.php">HOME</a></li>
                     <li><a href="games.php">JEUX</a></li>
-                    <li><a href="blog.php">BLOG</a></li>
-                    <li><a href="events.php">EVENTS</a></li>
-                    <li><a href="reclamation.php">RÉCLAMATION</a></li>
+                    
                     <?php if ($isLoggedIn): ?>
                     <li><a href="my-orders.php" class="active">MES COMMANDES</a></li>
                     <?php endif; ?>
@@ -985,6 +983,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_action'])) {
                                     <a href="my-orders.php" class="dropdown-menu-link">
                                         <span class="dropdown-icon-left">🛒</span>
                                         MES COMMANDES
+                                    </a>
+                                </li>
+                                <li class="dropdown-menu-item">
+                                    <a href="../../../gaming_museum/view/frontoffice/index.php" class="dropdown-menu-link">
+                                        <span class="dropdown-icon-left">🎮</span>
+                                        gaming museum
                                     </a>
                                 </li>
                                 <?php if ($role === 'admin'): ?>

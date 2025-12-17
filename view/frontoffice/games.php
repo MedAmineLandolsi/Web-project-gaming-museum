@@ -338,9 +338,7 @@ $gameCount = $gamesC->countGames();
                 <ul class="nav-menu">
                     <li><a href="index.php">HOME</a></li>
                     <li><a href="games.php" class="active">JEUX</a></li>
-                    <li><a href="blog.php">BLOG</a></li>
-                    <li><a href="events.php">EVENTS</a></li>
-                    <li><a href="reclamation.php">RÉCLAMATION</a></li>
+                    
                     <?php if ($isLoggedIn): ?>
                     <li><a href="my-orders.php">MES COMMANDES</a></li>
                     <?php endif; ?>
@@ -380,6 +378,13 @@ $gameCount = $gamesC->countGames();
                                         MES COMMANDES
                                     </a>
                                 </li>
+                                <li class="dropdown-menu-item">
+                                    <a href="../../../gaming_museum/view/frontoffice/index.php" class="dropdown-menu-link">
+                                        <span class="dropdown-icon-left">🎮</span>
+                                        gaming museum
+                                    </a>
+                                </li>
+                            
                                 <?php if ($role === 'admin'): ?>
                                 <li class="dropdown-menu-item">
                                     <a href="../backoffice/dashboard.php" class="dropdown-menu-link admin">

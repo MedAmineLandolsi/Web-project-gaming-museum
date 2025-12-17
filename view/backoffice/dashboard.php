@@ -42,7 +42,49 @@ $current_page = 'dashboard.php';
     <title>Admin Dashboard - Ludology Vault</title>
     <link rel="stylesheet" href="admin-style.css">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
-    
+    <style>
+        .status {
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+
+.status-active {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.status-pending {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.status-inactive {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+.dashboard-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.dashboard-card {
+    width: 100%;
+}
+
+/* Or if you want to keep using grid but with single column */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr; /* Single column */
+    gap: 20px;
+}
+
+.dashboard-card {
+    width: 100%;
+}
+    </style>
 </head>
 <body>
     <!-- SIDEBAR - Copy this to every page -->
@@ -77,18 +119,7 @@ $current_page = 'dashboard.php';
                 <span class="nav-text">COMMANDES</span>
             </a>
         </li>
-        <li class="nav-item <?php echo $current_page == 'users.php' ? 'active' : ''; ?>">
-            <a href="users.php">
-                <span class="nav-icon">👥</span>
-                <span class="nav-text">UTILISATEURS</span>
-            </a>
-        </li>
-        <li class="nav-item <?php echo $current_page == 'profile.php' ? 'active' : ''; ?>">
-            <a href="profile.php">
-                <span class="nav-icon">👤</span>
-                <span class="nav-text">PROFIL</span>
-            </a>
-        </li>
+        
     </ul>
 </nav>
 
@@ -144,14 +175,7 @@ $current_page = 'dashboard.php';
                 </div>
             </div>
 
-            <div class="stat-card stat-secondary">
-                <div class="stat-icon">👥</div>
-                <div class="stat-content">
-                    <span class="stat-label">UTILISATEURS</span>
-                    <span class="stat-value" data-target="<?= count($allUsers) ?>">0</span>
-                    <span class="stat-change positive"><?= count($allUsers) ?> inscrits</span>
-                </div>
-            </div>
+            
 
             <div class="stat-card stat-accent">
                 <div class="stat-icon">🛒</div>
@@ -184,90 +208,111 @@ $current_page = 'dashboard.php';
                     <span class="action-icon">🛒</span>
                     <span class="action-text">AJOUTER COMMANDE</span>
                 </a>
-                <a href="games.php" class="action-btn action-accent">
+                <a href="addgame.php" class="action-btn action-accent">
                     <span class="action-icon">🎮</span>
                     <span class="action-text">GÉRER JEUX</span>
                 </a>
-                <a href="users.php" class="action-btn action-warning">
-                    <span class="action-icon">👥</span>
-                    <span class="action-text">GÉRER UTILISATEURS</span>
-                </a>
+                
             </div>
         </section>
 
         <!-- Main Dashboard Grid -->
-        <div class="dashboard-grid">
-            <!-- Recent Games -->
-            <section class="dashboard-card recent-games">
-                <div class="card-header">
-                    <h3 class="card-title">◄ JEUX RÉCENTS ►</h3>
-                    <a href="games.php"><button class="btn-view-all-small">VOIR TOUT</button></a>
-                </div>
-                <div class="card-content">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>NOM</th>
-                                <th>CATÉGORIE</th>
-                                <th>PRIX</th>
-                                <th>ACTIONS</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($recentGames as $game): ?>
-                            <tr>
-                                <td>#<?= $game['id'] ?></td>
-                                <td><?= htmlspecialchars($game['nom']) ?></td>
-                                <td><?= htmlspecialchars($game['categorie']) ?></td>
-                                <td><?= $game['prix'] ?> €</td>
-                                <td>
-                                    <a href="updategame.php?id=<?= $game['id'] ?>">
-                                        <button class="icon-btn edit">✏️</button>
-                                    </a>
-                                    <a href="delete.php?type=game&id=<?= $game['id'] ?>" onclick="return confirm('Supprimer ce jeu?')">
-                                        <button class="icon-btn delete">🗑️</button>
-                                    </a>
-                                </td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
-            <!-- Recent Orders -->
-            <section class="dashboard-card recent-orders">
-                <div class="card-header">
-                    <h3 class="card-title">◄ COMMANDES RÉCENTES ►</h3>
-                    <a href="commande.php"><button class="btn-view-all-small">VOIR TOUT</button></a>
-                </div>
-                <div class="card-content">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>UTILISATEUR</th>
-                                <th>MONTANT</th>
-                                <th>DATE</th>
-                                <th>STATUT</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($recentOrders as $order): ?>
-                            <tr>
-                                <td>#<?= $order['id'] ?></td>
-                                <td><?= $order['username'] ?? 'Anonyme' ?></td>
-                                <td><?= $order['Total'] ?> €</td>
-                                <td><?= date('d/m/Y', strtotime($order['Date'])) ?></td>
-                                <td><span class="status status-active"><?= $order['statut'] ?? 'En cours' ?></span></td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
+       <div class="dashboard-grid" style="display: flex; flex-direction: column; gap: 20px;">
+    <!-- Recent Games -->
+    <section class="dashboard-card recent-games">
+        <div class="card-header">
+            <h3 class="card-title">◄ JEUX RÉCENTS ►</h3>
+            <a href="addgame.php"><button class="btn-view-all-small">VOIR TOUT</button></a>
         </div>
+        <div class="card-content">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>NOM</th>
+                        <th>CATÉGORIE</th>
+                        <th>PRIX</th>
+                        <th>ACTIONS</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($recentGames as $game): ?>
+                    <tr>
+                        <td>#<?= $game['id'] ?></td>
+                        <td><?= htmlspecialchars($game['nom']) ?></td>
+                        <td><?= htmlspecialchars($game['categorie']) ?></td>
+                        <td><?= $game['prix'] ?> €</td>
+                        <td>
+                            <a href="updategame.php?id=<?= $game['id'] ?>">
+                                <button class="icon-btn edit">✏️</button>
+                            </a>
+                            <a href="delete.php?type=game&id=<?= $game['id'] ?>" onclick="return confirm('Supprimer ce jeu?')">
+                                <button class="icon-btn delete">🗑️</button>
+                            </a>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Recent Orders -->
+    <!-- Alternative: Simple Actions column like Games -->
+<section class="dashboard-card recent-orders">
+    <div class="card-header">
+        <h3 class="card-title">◄ COMMANDES RÉCENTES ►</h3>
+        <a href="commande.php"><button class="btn-view-all-small">VOIR TOUT</button></a>
+    </div>
+    <div class="card-content">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>RÉFÉRENCE</th>
+                    <th>CLIENT</th>
+                    <th>MONTANT</th>
+                    <th>DATE</th>
+                    <th>STATUT</th>
+                    <th>ACTIONS</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($recentOrders as $order): 
+                    $commande = Commande::createFromArray($order);
+                ?>
+                <tr>
+                    <td>#<?= $commande->getOrderRef() ?></td>
+                    <td><?= htmlspecialchars($commande->getShippingName() ?: 'Anonyme') ?></td>
+                    <td><?= $commande->getFormattedTotal() ?></td>
+                    <td><?= $commande->getFormattedDate('d/m/Y') ?></td>
+                    <td>
+                        <span class="status 
+                            <?= $commande->isPending() ? 'status-pending' : 
+                               ($commande->isCompleted() ? 'status-active' : 
+                               ($commande->isCancelled() ? 'status-inactive' : 'status-active')) ?>">
+                            <?= Commande::getStatusText($commande->getStatut()) ?>
+                        </span>
+                    </td>
+                    <td>
+                        <!-- View/Edit order -->
+                        <a href="updatecmd.php?id=<?= $commande->getId() ?>" title="Voir/Modifier">
+                            <button class="icon-btn edit">✏️</button>
+                        </a>
+                        
+                        <!-- Delete order -->
+                        <a href="delete.php?type=order&id=<?= $commande->getId() ?>" 
+                           onclick="return confirm('Supprimer cette commande?')" 
+                           title="Supprimer">
+                            <button class="icon-btn delete">🗑️</button>
+                        </a>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</section>
+</div>
     </main>
 
     <script src="notification.js"></script>

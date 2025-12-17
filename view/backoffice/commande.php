@@ -364,18 +364,7 @@ $current_page = 'commande.php';
                         <span class="nav-count"><?php echo count($commandes); ?></span>
                     </a>
                 </li>
-                <li class="nav-item">
-                    <a href="users.php">
-                        <span class="nav-icon">👥</span>
-                        <span class="nav-text">UTILISATEURS</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="profile.php">
-                        <span class="nav-icon">👤</span>
-                        <span class="nav-text">PROFIL</span>
-                    </a>
-                </li>
+                
             </ul>
         </nav>
 

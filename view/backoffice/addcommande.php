@@ -352,18 +352,7 @@ $current_page = 'addcommande.php';
                         <span class="nav-text">COMMANDES</span>
                     </a>
                 </li>
-                <li class="nav-item">
-                    <a href="users.php">
-                        <span class="nav-icon">👥</span>
-                        <span class="nav-text">UTILISATEURS</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="profile.php">
-                        <span class="nav-icon">👤</span>
-                        <span class="nav-text">PROFIL</span>
-                    </a>
-                </li>
+                
             </ul>
         </nav>
 
