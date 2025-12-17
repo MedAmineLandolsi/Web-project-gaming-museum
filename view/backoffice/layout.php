@@ -7,14 +7,15 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
-    <link href="/projet/view/backoffice/admin.css" rel="stylesheet">
-    <script src="/projet/view/backoffice/admin-script.js"></script>
+    <?php $baseUrl = defined('BASE_URL') ? BASE_URL : ''; ?>
+    <?php $adminCssVersion = @filemtime(__DIR__ . '/admin.css') ?: time(); ?>
+    <link href="<?php echo $baseUrl; ?>/view/backoffice/admin.css?v=<?php echo $adminCssVersion; ?>" rel="stylesheet">
+    <script src="<?php echo $baseUrl; ?>/view/backoffice/admin-script.js"></script>
 </head>
 <body>
     <?php
     $sidebarStatsDefaults = [
         'dashboard' => 0,
-        'membres' => 0,
         'communautes' => 0,
         'publications' => 0,
     ];
@@ -28,7 +29,7 @@
             <div class="sidebar-header">
                 <div class="admin-logo">
                     <div class="logo-box">
-                        <img src="/projet/logo.png" alt="Logo" style="height:40px;">
+                        <img src="<?php echo $baseUrl; ?>/logo.png" alt="Logo" style="height:40px;">
                     </div>
                     <div class="admin-title">
                         <h2>SYSTÈME ADMIN</h2>
@@ -37,41 +38,82 @@
                 </div>
             </div>
             
+            <?php
+            // Profil admin: aligné au style gaming_museum (avatar rond + indicateur)
+            $rootBase = $baseUrl;
+            if ($rootBase !== '' && preg_match('#/projet$#', $rootBase)) {
+                $rootBase = substr($rootBase, 0, -strlen('/projet'));
+            }
+
+            $adminUsername = trim((string)($_SESSION['username'] ?? ''));
+            if ($adminUsername === '') {
+                $adminUsername = trim((string)($_SESSION['prenom'] ?? 'Admin'));
+            }
+            if ($adminUsername === '') {
+                $adminUsername = 'Admin';
+            }
+
+            $adminAvatarUrl = (string)($_SESSION['user_avatar'] ?? '');
+            if ($adminAvatarUrl === '') {
+                $pp = (string)($_SESSION['profile_picture_url'] ?? '');
+                if ($pp !== '') {
+                    $adminAvatarUrl = ($rootBase === '')
+                        ? ('/gaming_museum/uploads/' . $pp)
+                        : ($rootBase . '/gaming_museum/uploads/' . $pp);
+                }
+            }
+
+            // Normaliser URL avatar si besoin
+            if ($adminAvatarUrl !== '') {
+                if (strpos($adminAvatarUrl, '://') === false && $adminAvatarUrl[0] !== '/' && strpos($adminAvatarUrl, 'uploads/') === false) {
+                    $adminAvatarUrl = ($rootBase === '')
+                        ? ('/gaming_museum/uploads/' . $adminAvatarUrl)
+                        : ($rootBase . '/gaming_museum/uploads/' . $adminAvatarUrl);
+                }
+                if (strpos($adminAvatarUrl, '/gaming_museum/uploads/') === false && strpos($adminAvatarUrl, '/uploads/') !== false) {
+                    $adminAvatarUrl = preg_replace('#/uploads/#', '/gaming_museum/uploads/', $adminAvatarUrl, 1);
+                    if (strpos($adminAvatarUrl, '://') === false && $adminAvatarUrl[0] !== '/') {
+                        $adminAvatarUrl = ($rootBase === '') ? ('/' . ltrim($adminAvatarUrl, '/')) : ($rootBase . '/' . ltrim($adminAvatarUrl, '/'));
+                    }
+                }
+            }
+
+            $adminInitials = strtoupper(substr($adminUsername, 0, 2));
+            ?>
             <div class="admin-profile">
                 <div class="admin-avatar">
-                    <?php echo strtoupper(substr($_SESSION['user_prenom'] ?? 'A', 0, 1) . substr($_SESSION['user_nom'] ?? 'D', 0, 1)); ?>
+                    <?php if ($adminAvatarUrl !== ''): ?>
+                        <img src="<?php echo htmlspecialchars($adminAvatarUrl); ?>" alt="Admin" class="admin-avatar-img">
+                    <?php else: ?>
+                        <?php echo htmlspecialchars($adminInitials); ?>
+                    <?php endif; ?>
+                    <div class="admin-profile-indicator"></div>
                 </div>
                 <div class="admin-info">
-                    <div class="admin-name"><?php echo ($_SESSION['user_prenom'] ?? 'Admin') . ' ' . ($_SESSION['user_nom'] ?? ''); ?></div>
-                    <div class="admin-role">ADMINISTRATEUR</div>
+                    <div class="admin-name"><?php echo htmlspecialchars($adminUsername); ?></div>
+                    <div class="admin-role">Super Admin</div>
                 </div>
             </div>
             
             <div class="sidebar-nav">
                 <ul class="nav-list">
-                    <li class="nav-item <?php echo ($_SERVER['REQUEST_URI'] == '/projet/admin') ? 'active' : ''; ?>">
-                        <a href="/projet/admin">
+                    <li class="nav-item <?php echo (($_SERVER['REQUEST_URI'] ?? '') == $baseUrl . '/admin') ? 'active' : ''; ?>">
+                        <a href="<?php echo $baseUrl; ?>/admin">
                             <i class="fas fa-tachometer-alt nav-icon"></i>
                             <span class="nav-text">DASHBOARD</span>
                             <span class="nav-count"><?php echo number_format($sidebarStats['dashboard']); ?></span>
                         </a>
                     </li>
-                    <li class="nav-item <?php echo strpos($_SERVER['REQUEST_URI'], '/admin/membres') !== false ? 'active' : ''; ?>">
-                        <a href="/projet/admin/membres">
-                            <i class="fas fa-users nav-icon"></i>
-                            <span class="nav-text">MEMBRES</span>
-                            <span class="nav-count"><?php echo number_format($sidebarStats['membres']); ?></span>
-                        </a>
-                    </li>
-                    <li class="nav-item <?php echo strpos($_SERVER['REQUEST_URI'], '/admin/communautes') !== false ? 'active' : ''; ?>">
-                        <a href="/projet/admin/communautes">
+
+                    <li class="nav-item <?php echo strpos($_SERVER['REQUEST_URI'] ?? '', '/admin/communautes') !== false ? 'active' : ''; ?>">
+                        <a href="<?php echo $baseUrl; ?>/admin/communautes">
                             <i class="fas fa-users nav-icon"></i>
                             <span class="nav-text">COMMUNAUTÉS</span>
                             <span class="nav-count"><?php echo number_format($sidebarStats['communautes']); ?></span>
                         </a>
                     </li>
-                    <li class="nav-item <?php echo strpos($_SERVER['REQUEST_URI'], '/admin/publications') !== false ? 'active' : ''; ?>">
-                        <a href="/projet/admin/publications">
+                    <li class="nav-item <?php echo strpos($_SERVER['REQUEST_URI'] ?? '', '/admin/publications') !== false ? 'active' : ''; ?>">
+                        <a href="<?php echo $baseUrl; ?>/admin/publications">
                             <i class="fas fa-newspaper nav-icon"></i>
                             <span class="nav-text">PUBLICATIONS</span>
                             <span class="nav-count"><?php echo number_format($sidebarStats['publications']); ?></span>
@@ -81,11 +123,11 @@
             </div>
             
             <div class="sidebar-footer">
-                <a href="/projet/" class="btn-view-site">
+                <a href="<?php echo $baseUrl; ?>/" class="btn-view-site">
                     <i class="fas fa-arrow-left me-2"></i>
                     RETOUR AU SITE
                 </a>
-                <form action="/projet/logout" method="POST" class="mt-2">
+                <form action="<?php echo $baseUrl; ?>/logout" method="POST" class="mt-2">
                     <button type="submit" class="btn-logout">
                         <i class="fas fa-sign-out-alt"></i>
                         DÉCONNEXION
@@ -127,7 +169,17 @@
         </main>
     </div>
 
+    <!-- AI Help Widget Mount (admin) -->
+    <div id="ai-help-widget" data-context="admin"></div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="/projet/assets/js/admin-script.js?v=20241125"></script>
+    <?php
+        $aiJsPathLocal = dirname(__DIR__) . '/shared/ai-features.js';
+        $aiJsVer = file_exists($aiJsPathLocal) ? filemtime($aiJsPathLocal) : time();
+    ?>
+    <script>
+        window.__PROJET_BASE_URL = <?php echo json_encode($baseUrl, JSON_UNESCAPED_SLASHES); ?>;
+    </script>
+    <script src="<?php echo $baseUrl; ?>/view/shared/ai-features.js?v=<?php echo $aiJsVer; ?>"></script>
 </body>
 </html>

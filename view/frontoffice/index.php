@@ -1,36 +1,19 @@
 <?php
 session_start();
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-if (isset($_GET['debug'])) {
-    echo "<pre style='background: #f0f0f0; padding: 10px; margin: 10px;'>";
-    echo "=== DEBUG INFORMATION ===\n";
-    echo "REQUEST_URI: " . $_SERVER['REQUEST_URI'] . "\n";
-    echo "SCRIPT_NAME: " . $_SERVER['SCRIPT_NAME'] . "\n";
-    echo "BASE_URL: " . (defined('BASE_URL') ? BASE_URL : 'non défini') . "\n";
-    echo "Path calculé: " . $path . "\n";
-    echo "=======================\n";
-    echo "</pre>";
-}
-// === SIMULATION D'UTILISATEUR CONNECTÉ ===
-if (!isset($_SESSION['user_id'])) {
-    // Assurez-vous que cet ID correspond à un auteur de publication existant
-    $_SESSION['user_id'] = 1; // Jean Dupont
-    $_SESSION['user_nom'] = 'Dupont';
-    $_SESSION['user_prenom'] = 'Jean';
-    $_SESSION['user_email'] = 'jean.dupont@email.com';
-    $_SESSION['user_avatar'] = 'https://i.pravatar.cc/150?img=1';
-    $_SESSION['is_admin'] = true;
-}
+
+// En dev, n'affiche pas les notices/warnings au milieu du HTML (ça casse souvent les URLs d'assets)
+error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
+ini_set('display_errors', 0);
+// Auth réelle: ne pas simuler d'utilisateur.
 
 // Inclure les fichiers nécessaires
 require_once dirname(__DIR__, 2) . '/config.php';
-require_once dirname(__DIR__, 2) . '/model/Membre.php';
+require_once dirname(__DIR__) . '/shared/validation.php';
 require_once dirname(__DIR__, 2) . '/model/Communaute.php';
 require_once dirname(__DIR__, 2) . '/model/Publication.php';
-require_once dirname(__DIR__, 2) . '/controller/MembreController.php';
 require_once dirname(__DIR__, 2) . '/controller/CommunauteController.php';
 require_once dirname(__DIR__, 2) . '/controller/PublicationController.php';
+require_once dirname(__DIR__, 2) . '/controller/ApiController.php';
 
 // Initialiser la base de données
 $database = new Database();
@@ -47,38 +30,30 @@ if (!$db) {
 }
 
 // Initialiser les contrôleurs
-$membreController = new MembreController($db);
 $communauteController = new CommunauteController($db);
 $publicationController = new PublicationController($db);
+$apiController = new ApiController($db);
 
 // Router
 $request = $_SERVER['REQUEST_URI'];
 $method = $_SERVER['REQUEST_METHOD'];
 
 
-// Calculer dynamiquement la base path selon l'emplacement du front controller.
-// Si ce fichier est inclus depuis la racine (index.php), dirname(SCRIPT_NAME) renverra '/projet'
-// Calculer un base_path fiable : prendre le premier segment de SCRIPT_NAME
-$scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
-$trim = trim($scriptName, '/');
-$parts = $trim === '' ? [] : explode('/', $trim);
-if (count($parts) > 0 && $parts[0] !== '') {
-    $base_path = '/' . $parts[0];
-} else {
-    $base_path = '';
-}
-
-// Définir une constante globale BASE_URL utilisable par les vues
+// BASE_URL est défini dans /index.php (front controller racine)
 if (!defined('BASE_URL')) {
-    // Par défaut, utiliser '/projet' lorsqu'aucune base n'a été détectée
-    define('BASE_URL', $base_path === '' ? '/projet' : $base_path);
+    $scriptName = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
+    $baseUrl = rtrim(dirname($scriptName), '/');
+    if ($baseUrl === '/' || $baseUrl === '.') {
+        $baseUrl = '';
+    }
+    define('BASE_URL', $baseUrl);
 }
 // Construire le path à partir de REQUEST_URI en enlevant le query string
 $path = explode('?', $request)[0];
 
-// Retirer le base_path (ex: /projet) s'il est présent au début
-if ($base_path !== '' && strpos($path, $base_path) === 0) {
-    $path = substr($path, strlen($base_path));
+// Retirer le base path (ex: /projet-web/projet) s'il est présent au début
+if (BASE_URL !== '' && strpos($path, BASE_URL) === 0) {
+    $path = substr($path, strlen(BASE_URL));
 }
 
 // Pour compatibilité, aussi retirer /index.php si présent au début
@@ -89,7 +64,7 @@ if (strpos($path, '/index.php') === 0) {
 // (debug blocks removed) To enable debugging, open this file and add temporary prints.
 
 // Normaliser le path (enlever les slashes et points en fin sauf pour la racine)
-// Certaines requêtes peuvent contenir un point final accidentel (ex: /membres.)
+// Certaines requêtes peuvent contenir un point final accidentel
 // qui empêcherait la correspondance des routes. On supprime donc les '/' et '.' en fin.
 $path = rtrim($path, '/.');
 if (empty($path)) {
@@ -107,33 +82,44 @@ if (empty($path)) {
 $matches = [];
 $routeMatched = false;
 
+// Join / Leave communauté
+if (preg_match('/^\/communautes\/(\d+)\/join$/', $path, $matches)) {
+    if ($method === 'POST') {
+        $communauteController->join((int) $matches[1]);
+    }
+    http_response_code(405);
+    exit;
+} elseif (preg_match('/^\/communautes\/(\d+)\/leave$/', $path, $matches)) {
+    if ($method === 'POST') {
+        $communauteController->leave((int) $matches[1]);
+    }
+    http_response_code(405);
+    exit;
+}
+
 // Routes Publications Front avec regex - ORDRE IMPORTANT : edit, update, delete AVANT show
 // Note: Les URLs front utilisent /publications/edit/{id} et /publications/update/{id}
-if (preg_match('/^\/publications\/edit\/(\d+)$/', $path, $matches)) {
+if (!$routeMatched && preg_match('/^\/publications\/edit\/(\d+)$/', $path, $matches)) {
     if ($method == 'GET') {
         $publicationController->editFront($matches[1]);
     }
     $routeMatched = true;
-} elseif (preg_match('/^\/publications\/update\/(\d+)$/', $path, $matches)) {
+} elseif (!$routeMatched && preg_match('/^\/publications\/update\/(\d+)$/', $path, $matches)) {
     if ($method == 'POST') {
         $publicationController->updateFront($matches[1], $_POST);
     }
     $routeMatched = true;
-} elseif (preg_match('/^\/publications\/delete\/(\d+)$/', $path, $matches)) {
+} elseif (!$routeMatched && preg_match('/^\/publications\/delete\/(\d+)$/', $path, $matches)) {
     if ($method == 'POST') {
         $publicationController->deleteFront($matches[1]);
     }
     $routeMatched = true;
-} elseif (preg_match('/^\/publications\/(\d+)$/', $path, $matches)) {
+} elseif (!$routeMatched && preg_match('/^\/publications\/(\d+)$/', $path, $matches)) {
     $publicationController->showFront($matches[1]);
     $routeMatched = true;
 }
 
-// Routes Membres Front avec regex
-if (!$routeMatched && preg_match('/^\/membres\/(\d+)$/', $path, $matches)) {
-    $membreController->showFront($matches[1]);
-    $routeMatched = true;
-}
+// (Routes supprimées)
 
 // Routes Communautés Front avec regex
 if (!$routeMatched && preg_match('/^\/communautes\/(\d+)$/', $path, $matches)) {
@@ -141,37 +127,7 @@ if (!$routeMatched && preg_match('/^\/communautes\/(\d+)$/', $path, $matches)) {
     $routeMatched = true;
 }
 
-// Routes Admin Membres avec regex
-if (!$routeMatched && preg_match('/^\/admin\/membres\/(\d+)$/', $path, $matches)) {
-    if (!isset($_SESSION['is_admin']) || !$_SESSION['is_admin']) {
-        header('Location: ' . BASE_URL . '/');
-        exit;
-    }
-    if ($method == 'GET') {
-        $membreController->showBack($matches[1]);
-    }
-    $routeMatched = true;
-} elseif (!$routeMatched && preg_match('/^\/admin\/membres\/(\d+)\/edit$/', $path, $matches)) {
-    if (!isset($_SESSION['is_admin']) || !$_SESSION['is_admin']) {
-        header('Location: ' . BASE_URL . '/');
-        exit;
-    }
-    if ($method == 'GET') {
-        $membreController->edit($matches[1]);
-    } elseif ($method == 'POST') {
-        $membreController->update($matches[1], $_POST);
-    }
-    $routeMatched = true;
-} elseif (!$routeMatched && preg_match('/^\/admin\/membres\/(\d+)\/delete$/', $path, $matches)) {
-    if (!isset($_SESSION['is_admin']) || !$_SESSION['is_admin']) {
-        header('Location: ' . BASE_URL . '/');
-        exit;
-    }
-    if ($method == 'POST') {
-        $membreController->delete($matches[1]);
-    }
-    $routeMatched = true;
-}
+// (Routes Admin supprimées)
 
 // Routes Admin Communautés avec regex
 if (!$routeMatched && preg_match('/^\/admin\/communautes\/(\d+)$/', $path, $matches)) {
@@ -185,7 +141,7 @@ if (!$routeMatched && preg_match('/^\/admin\/communautes\/(\d+)$/', $path, $matc
     $routeMatched = true;
 } elseif (!$routeMatched && preg_match('/^\/admin\/communautes\/(\d+)\/edit$/', $path, $matches)) {
     if (!isset($_SESSION['is_admin']) || !$_SESSION['is_admin']) {
-        header('Location: /projet/');
+		header('Location: ' . BASE_URL . '/');
         exit;
     }
     if ($method == 'GET') {
@@ -196,7 +152,7 @@ if (!$routeMatched && preg_match('/^\/admin\/communautes\/(\d+)$/', $path, $matc
     $routeMatched = true;
 } elseif (!$routeMatched && preg_match('/^\/admin\/communautes\/(\d+)\/delete$/', $path, $matches)) {
     if (!isset($_SESSION['is_admin']) || !$_SESSION['is_admin']) {
-        header('Location: /projet/');
+		header('Location: ' . BASE_URL . '/');
         exit;
     }
     if ($method == 'POST') {
@@ -208,7 +164,7 @@ if (!$routeMatched && preg_match('/^\/admin\/communautes\/(\d+)$/', $path, $matc
 // Routes Admin Publications avec regex
 if (!$routeMatched && preg_match('/^\/admin\/publications\/(\d+)$/', $path, $matches)) {
     if (!isset($_SESSION['is_admin']) || !$_SESSION['is_admin']) {
-        header('Location: /projet/');
+		header('Location: ' . BASE_URL . '/');
         exit;
     }
     if ($method == 'GET') {
@@ -217,7 +173,7 @@ if (!$routeMatched && preg_match('/^\/admin\/publications\/(\d+)$/', $path, $mat
     $routeMatched = true;
 } elseif (!$routeMatched && preg_match('/^\/admin\/publications\/(\d+)\/edit$/', $path, $matches)) {
     if (!isset($_SESSION['is_admin']) || !$_SESSION['is_admin']) {
-        header('Location: /projet/');
+		header('Location: ' . BASE_URL . '/');
         exit;
     }
     if ($method == 'GET') {
@@ -228,7 +184,7 @@ if (!$routeMatched && preg_match('/^\/admin\/publications\/(\d+)$/', $path, $mat
     $routeMatched = true;
 } elseif (!$routeMatched && preg_match('/^\/admin\/publications\/(\d+)\/delete$/', $path, $matches)) {
     if (!isset($_SESSION['is_admin']) || !$_SESSION['is_admin']) {
-        header('Location: /projet/');
+		header('Location: ' . BASE_URL . '/');
         exit;
     }
     if ($method == 'POST') {
@@ -259,10 +215,7 @@ switch ($path) {
         break;
     // === ROUTES FRONT OFFICE ===
     
-    // Membres Front
-    case '/membres':
-        $membreController->indexFront();
-        break;
+    // (Routes supprimées)
 
     // Communautés Front
     case '/communautes':
@@ -315,7 +268,6 @@ switch ($path) {
         }
 
         // Préparer les statistiques du tableau de bord
-        $membreStatsModel = new Membre($db);
         $communauteStatsModel = new Communaute($db);
         $publicationStatsModel = new Publication($db);
 
@@ -324,59 +276,34 @@ switch ($path) {
         $monthStart = date('Y-m-01 00:00:00');
 
         $stats = [
-            'members_total' => $membreStatsModel->countAll(),
             'communautes_total' => $communauteStatsModel->countAll(),
             'publications_total' => $publicationStatsModel->countAll(),
             'comments_total' => $publicationStatsModel->totalComments(),
-            'members_new_week' => $membreStatsModel->countRegisteredSince($weekStart),
             'communautes_new_month' => $communauteStatsModel->countCreatedSince($monthStart),
             'publications_today' => $publicationStatsModel->countSinceDate($todayStart),
         ];
 
         $recentInteractions = $publicationStatsModel->totalInteractionsSince($weekStart);
-        $stats['engagement_rate'] = min(100, round(($recentInteractions / max($stats['members_total'], 1)) * 100));
+        $stats['engagement_rate'] = min(100, round(($recentInteractions / max(1, 1)) * 100));
 
-        $latestMembers = $membreStatsModel->getLatest(5);
         $latestCommunautes = $communauteStatsModel->getLatest(5);
         $latestPublications = $publicationStatsModel->getLatest(5);
 
         $sidebarStats = [
-            'dashboard' => $stats['members_total'] + $stats['communautes_total'] + $stats['publications_total'],
-            'membres' => $stats['members_total'],
+            'dashboard' => $stats['communautes_total'] + $stats['publications_total'],
             'communautes' => $stats['communautes_total'],
             'publications' => $stats['publications_total'],
         ];
 
         $title = "Tableau de bord administrateur";
         ob_start();
-            include '../backoffice/dashboard.php';
+            $backofficeDir = dirname(__DIR__) . '/backoffice';
+            include $backofficeDir . '/dashboard.php';
         $content = ob_get_clean();
-        include '../backoffice/layout.php';
+        include $backofficeDir . '/layout.php';
         break;
 
-    // Membres Back
-    case '/admin/membres':
-        if (!isset($_SESSION['is_admin']) || !$_SESSION['is_admin']) {
-            header('Location: ' . BASE_URL . '/');
-            exit;
-        }
-        if ($method == 'GET') {
-            $membreController->indexBack();
-        }
-        break;
-        
-    case '/admin/membres/create':
-        if (!isset($_SESSION['is_admin']) || !$_SESSION['is_admin']) {
-            header('Location: ' . BASE_URL . '/');
-            exit;
-        }
-        if ($method == 'GET') {
-            $membreController->create();
-        } elseif ($method == 'POST') {
-            $membreController->store($_POST);
-        }
-        break;
-        
+    // (Routes Admin supprimées)
 
     // Communautés Back
     case '/admin/communautes':
@@ -415,7 +342,7 @@ switch ($path) {
         
     case '/admin/publications/create':
         if (!isset($_SESSION['is_admin']) || !$_SESSION['is_admin']) {
-            header('Location: /projet/');
+		header('Location: ' . BASE_URL . '/');
             exit;
         }
         if ($method == 'GET') {
@@ -428,23 +355,25 @@ switch ($path) {
 
     // === ROUTES API ===
 
-    case '/api/join-community':
-        if ($method == 'POST') {
-             include '../../../api/join-community.php';
+    case '/api/search':
+        if ($method === 'GET') {
+            $apiController->search();
         }
-        break;
+        http_response_code(405);
+        exit;
 
-    case '/api/leave-community':
-        if ($method == 'POST') {
-             include '../../../api/leave-community.php';
+    case '/api/ai/chat':
+        if ($method === 'POST') {
+            $apiController->chat();
         }
-        break;
+        http_response_code(405);
+        exit;
 
     // === ROUTES UTILITAIRES ===
 
     // Route pour réinitialiser les données (débogage)
     case '/reset-demo':
-        $__base_for_views = defined('BASE_URL') ? BASE_URL : '/projet';
+	    $__base_for_views = defined('BASE_URL') ? BASE_URL : '';
         echo "<h1>Réinitialisation des données de démonstration</h1>";
         echo "<p>Cette fonctionnalité n'est pas implémentée. Supprimez manuellement la base de données 'projet_db' pour réinitialiser.</p>";
         echo "<a href='" . $__base_for_views . "/'>Retour à l'accueil</a>";
@@ -466,7 +395,7 @@ switch ($path) {
         http_response_code(404);
         $title = "Page non trouvée";
         ob_start();
-                        $__base_for_views = defined('BASE_URL') ? BASE_URL : '/projet';
+                    $__base_for_views = defined('BASE_URL') ? BASE_URL : '';
                         echo "<div class='container text-center py-5'>
                                         <h1>404 - Page non trouvée</h1>
                                         <p>La page demandée n'existe pas ou l'URL est incorrecte.<br>Accédez au site via <b>" . $__base_for_views . "/</b> et non <b>" . $__base_for_views . "/view/frontoffice/</b>.</p>
@@ -474,7 +403,6 @@ switch ($path) {
                                                 <a href='" . $__base_for_views . "/' class='btn btn-primary me-2'>Accueil</a>
                                                 <a href='" . $__base_for_views . "/communautes' class='btn btn-outline-primary'>Communautés</a>
                                                 <a href='" . $__base_for_views . "/publications' class='btn btn-outline-primary'>Publications</a>
-                                                <a href='" . $__base_for_views . "/membres' class='btn btn-outline-primary'>Membres</a>
                                         </div>
                                     </div>";
         $content = ob_get_clean();

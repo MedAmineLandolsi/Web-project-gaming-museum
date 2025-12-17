@@ -14,7 +14,7 @@ $aiAssistant = $this->addAIAssistantToForm();
                 <p class="text-muted">Partagez vos idées, photos ou questions avec la communauté</p>
             </div>
 
-            <form action="/projet/publications/create" method="POST" enctype="multipart/form-data">
+            <form action="<?php echo BASE_URL; ?>/publications/create" method="POST" enctype="multipart/form-data">
                 <!-- Sélection de la communauté -->
                 <div class="mb-4">
                     <label for="communaute_id" class="form-label">Communauté *</label>
@@ -64,7 +64,7 @@ $aiAssistant = $this->addAIAssistantToForm();
 
                 <!-- Boutons d'action -->
                 <div class="d-flex gap-2 justify-content-end">
-                    <a href="/projet/communautes/<?php echo $communaute_id; ?>" class="btn btn-secondary">
+                    <a href="<?php echo BASE_URL; ?>/communautes/<?php echo $communaute_id; ?>" class="btn btn-secondary">
                         <i class="fas fa-arrow-left me-2"></i>Annuler
                     </a>
                     <button type="submit" class="btn btn-primary">

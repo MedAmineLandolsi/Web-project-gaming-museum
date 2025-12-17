@@ -27,7 +27,7 @@ if (isset($_SESSION['old_input']['images'])) {
         <h4>Modifier la publication</h4>
     </div>
     <div class="card-body">
-        <form action="/projet/admin/publications/<?php echo $this->publicationModel->id; ?>/edit" method="POST" data-validate="true">
+        <form action="<?php echo BASE_URL; ?>/admin/publications/<?php echo $this->publicationModel->id; ?>/edit" method="POST" data-validate="true">
             <div class="mb-3">
                 <label for="communaute_id" class="form-label">Communauté *</label>
                 <select class="form-control <?php echo isset($_SESSION['form_errors']['communaute_id']) ? 'is-invalid' : ''; ?>" 
@@ -91,7 +91,7 @@ if (isset($_SESSION['old_input']['images'])) {
                 <button type="submit" class="btn btn-primary">
                     <i class="fas fa-save"></i> Mettre à jour
                 </button>
-                <a href="/projet/admin/publications" class="btn btn-secondary">
+                <a href="<?php echo BASE_URL; ?>/admin/publications" class="btn btn-secondary">
                     <i class="fas fa-arrow-left"></i> Annuler
                 </a>
             </div>

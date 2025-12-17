@@ -1,19 +1,15 @@
 <?php
-// Front controller loader
-// Redirige toutes les requêtes vers le frontoffice index.php
-// pour que les règles de réécriture dans .htaccess fonctionnent.
+// Front controller (racine)
+// Toutes les requêtes réécrites par .htaccess arrivent ici.
 
-// Activer l'affichage des erreurs en développement
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
-
-// Redirection de secours : si quelqu'un tente d'accéder directement
-// à /projet/view/frontoffice/... on le renvoie vers la racine /projet/
-$requestUri = $_SERVER['REQUEST_URI'] ?? '';
-if (strpos($requestUri, '/view/frontoffice') !== false) {
-	header('Location: /projet/');
-	exit;
+// Base URL dynamique: fonctionne si le projet est dans /projet, /projet-web/projet, etc.
+if (!defined('BASE_URL')) {
+	$scriptName = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
+	$baseUrl = rtrim(dirname($scriptName), '/');
+	if ($baseUrl === '/' || $baseUrl === '.') {
+		$baseUrl = '';
+	}
+	define('BASE_URL', $baseUrl);
 }
 
-// Inclure le front controller
 require __DIR__ . '/view/frontoffice/index.php';

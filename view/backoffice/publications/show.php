@@ -89,15 +89,15 @@ $publication = $publicationModel ?? $this->publicationModel;
                 <?php endif; ?>
 
                 <div class="mt-4">
-                    <a href="/projet/admin/publications/<?php echo $publication->id; ?>/edit" class="btn btn-warning">
+                    <a href="<?php echo BASE_URL; ?>/admin/publications/<?php echo $publication->id; ?>/edit" class="btn btn-warning">
                         <i class="fas fa-edit"></i> Modifier
                     </a>
-                    <form action="/projet/admin/publications/<?php echo $publication->id; ?>/delete" method="POST" class="d-inline">
+                    <form action="<?php echo BASE_URL; ?>/admin/publications/<?php echo $publication->id; ?>/delete" method="POST" class="d-inline">
                         <button type="submit" class="btn btn-danger" onclick="return confirm('Êtes-vous sûr de vouloir supprimer cette publication ?')">
                             <i class="fas fa-trash"></i> Supprimer
                         </button>
                     </form>
-                    <a href="/projet/admin/publications" class="btn btn-secondary">
+                    <a href="<?php echo BASE_URL; ?>/admin/publications" class="btn btn-secondary">
                         <i class="fas fa-arrow-left"></i> Retour à la liste
                     </a>
                 </div>

@@ -197,49 +197,7 @@ class CommunityApp {
             });
         });
 
-        // --- Gestion du bouton Quitter Communauté ---
-        const quitButtons = document.querySelectorAll('.leave-community');
-        quitButtons.forEach(btn => {
-            btn.addEventListener('click', async function(e) {
-                e.preventDefault();
-                if (btn.disabled) return;
-                btn.disabled = true;
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>';
-                const form = btn.closest('form');
-                const communauteId = form.querySelector('[name="communaute_id"]').value;
-                try {
-                    const response = await fetch((window.BASE_URL || '') + '/api/leave-community', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                        },
-                        body: 'communaute_id=' + encodeURIComponent(communauteId)
-                    });
-                    const text = await response.text();
-                    let data;
-                    try { data = JSON.parse(text); } catch { data = {success:false,message:'Réponse invalide'}; }
-                    if (data.success) {
-                        btn.classList.remove('btn-danger');
-                        btn.classList.add('btn-secondary');
-                        btn.innerHTML = '<i class="fas fa-user-plus me-2"></i>Rejoindre';
-                        btn.disabled = false;
-                        btn.classList.remove('leave-community');
-                        btn.classList.add('join-community');
-                        // Redirige ou reload si besoin :
-                        // location.reload();
-                    } else {
-                        btn.innerHTML = '<i class="fas fa-user-minus me-2"></i>Quitter';
-                        btn.disabled = false;
-                        alert(data.message || 'Erreur inconnue');
-                    }
-                } catch (er) {
-                    btn.innerHTML = '<i class="fas fa-user-minus me-2"></i>Quitter';
-                    btn.disabled = false;
-                    alert('Erreur réseau ou serveur.');
-                }
-            });
-        });
-        // --- Fin gestion quitter ---
+        // Fonctionnalité "rejoindre/quitter" supprimée.
     }
 
     // =============================================
@@ -534,15 +492,28 @@ class CommunityApp {
         const submitBtn = form.querySelector('button[type="submit"]');
         if (submitBtn) {
             const originalText = submitBtn.innerHTML;
+            if (!submitBtn.dataset.originalText) {
+                submitBtn.dataset.originalText = originalText;
+            }
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Chargement...';
             
             // Restaurer après 30s maximum (au cas où)
             setTimeout(() => {
                 submitBtn.disabled = false;
-                submitBtn.innerHTML = originalText;
+                submitBtn.innerHTML = submitBtn.dataset.originalText || originalText;
             }, 30000);
         }
+    }
+
+    resetAllLoadingStates() {
+        const submitButtons = document.querySelectorAll('button[type="submit"][data-original-text]');
+        submitButtons.forEach(btn => {
+            if (btn.disabled) {
+                btn.disabled = false;
+                btn.innerHTML = btn.dataset.originalText;
+            }
+        });
     }
 
     setupFileUploads() {
@@ -735,9 +706,10 @@ class CommunityApp {
 
     setupNotifications() {
         // Auto-dismiss des alertes après 5 secondes
-        const alerts = document.querySelectorAll('.alert');
+        const alerts = document.querySelectorAll('.alert:not([data-persist="true"])');
         alerts.forEach(alert => {
             setTimeout(() => {
+                if (typeof bootstrap === 'undefined' || !bootstrap.Alert) return;
                 const bsAlert = new bootstrap.Alert(alert);
                 bsAlert.close();
             }, 5000);
@@ -1031,6 +1003,12 @@ class CommunityApp {
         document.addEventListener('submit', (e) => {
             const form = e.target;
             if (form.tagName === 'FORM') {
+                // Si un autre handler a annulé la soumission (validation), ne pas forcer le chargement.
+                if (e.defaultPrevented) return;
+
+                // Si la validation custom gère déjà l'état de chargement, éviter le doublon.
+                if (form.hasAttribute('data-validate')) return;
+
                 this.setFormLoading(form, true);
             }
         });
@@ -1041,11 +1019,15 @@ class CommunityApp {
         if (submitBtn) {
             if (isLoading) {
                 submitBtn.disabled = true;
-                submitBtn.dataset.originalText = submitBtn.innerHTML;
+                if (!submitBtn.dataset.originalText) {
+                    submitBtn.dataset.originalText = submitBtn.innerHTML;
+                }
                 submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Chargement...';
             } else {
                 submitBtn.disabled = false;
-                submitBtn.innerHTML = submitBtn.dataset.originalText;
+                if (submitBtn.dataset.originalText) {
+                    submitBtn.innerHTML = submitBtn.dataset.originalText;
+                }
             }
         }
     }
@@ -1095,6 +1077,8 @@ class CommunityApp {
                 if (window.communityApp) return; // déjà initialisé
                 try {
                     window.communityApp = new CommunityApp();
+                    // Évite les boutons bloqués lors d'un retour arrière (bfcache)
+                    window.communityApp.resetAllLoadingStates();
                     console.info('CommunityApp initialisé avec succès');
                 } catch (err) {
                     attempts++;
@@ -1108,6 +1092,13 @@ class CommunityApp {
             };
 
             tryInit();
+        });
+
+        // Sur certains navigateurs, un retour arrière restaure le DOM (bfcache) avec des boutons disabled.
+        window.addEventListener('pageshow', (e) => {
+            if (window.communityApp && typeof window.communityApp.resetAllLoadingStates === 'function') {
+                window.communityApp.resetAllLoadingStates();
+            }
         });
     }
 }

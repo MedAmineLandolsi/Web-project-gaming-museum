@@ -2,7 +2,7 @@
     <div class="col-12">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h1 class="text-gradient fs-2 fw-bold mb-4"><i class="fas fa-users me-2"></i>Nos Communautés</h1>
-            <a href="<?php echo (defined('BASE_URL') ? BASE_URL : '/projet'); ?>/communautes/create" class="btn btn-primary">
+            <a href="<?php echo (defined('BASE_URL') ? BASE_URL : ''); ?>/communautes/create" class="btn btn-primary">
                 <i class="fas fa-plus me-2"></i>Créer une communauté
             </a>
         </div>
@@ -24,7 +24,16 @@
             <div class="d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Trier par :</h5>
                 <div class="d-flex gap-2">
-                    <select class="form-select form-select-sm" id="sortOrder" onchange="updateSort()">
+                    <select class="form-select form-select-sm" id="categoryFilter" onchange="applyCommunityFilters()">
+                        <option value="">Toutes catégories</option>
+                        <?php foreach (($categories ?? []) as $cat): ?>
+                            <?php $cat = (string) $cat; ?>
+                            <option value="<?php echo htmlspecialchars($cat); ?>" <?php echo (($_GET['categorie'] ?? '') === $cat) ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($cat); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <select class="form-select form-select-sm" id="sortOrder" onchange="applyCommunityFilters()">
                         <option value="date_creation_desc" <?php echo ($_GET['order_by'] ?? 'date_creation') == 'date_creation' && ($_GET['order_dir'] ?? 'DESC') == 'DESC' ? 'selected' : ''; ?>>Date (plus récentes)</option>
                         <option value="date_creation_asc" <?php echo ($_GET['order_by'] ?? '') == 'date_creation' && ($_GET['order_dir'] ?? '') == 'ASC' ? 'selected' : ''; ?>>Date (plus anciennes)</option>
                         <option value="nom_asc" <?php echo ($_GET['order_by'] ?? '') == 'nom' && ($_GET['order_dir'] ?? '') == 'ASC' ? 'selected' : ''; ?>>Nom (A-Z)</option>
@@ -38,9 +47,14 @@
 </div>
 
 <div class="row">
+    <?php
+        $__base = defined('BASE_URL') ? (string) BASE_URL : '';
+        $__root = rtrim(str_replace('\\', '/', dirname($__base)), '/');
+        if ($__root === '.' || $__root === '/') { $__root = ''; }
+        $__uploadsBase = ($__root === '') ? '/gaming_museum/uploads' : ($__root . '/gaming_museum/uploads');
+    ?>
     <?php if (!empty($communautes)): ?>
         <?php foreach ($communautes as $communaute): 
-            $membres_count = rand(50, 200);
             $publications_count = rand(10, 50);
             $is_my_community = isset($_SESSION['user_id']) && $_SESSION['user_id'] == $communaute['createur_id'];
         ?>
@@ -51,6 +65,10 @@
                     <img src="<?php echo htmlspecialchars($communaute['avatar']); ?>" 
                          alt="<?php echo htmlspecialchars($communaute['nom']); ?>" 
                          class="rounded-circle me-3" style="width: 60px; height: 60px; object-fit: cover;">
+                    <?php elseif (!empty($communaute['profile_picture_url'])): ?>
+                    <img src="<?php echo htmlspecialchars($__uploadsBase . '/' . $communaute['profile_picture_url']); ?>"
+                         alt="Avatar créateur"
+                         class="rounded-circle me-3" style="width: 60px; height: 60px; object-fit: cover; border:2px solid rgba(0,255,65,0.6);">
                     <?php else: ?>
                     <div class="avatar me-3" style="width: 60px; height: 60px; font-size: 1.5rem;">
                         <?php echo strtoupper(substr($communaute['nom'], 0, 2)); ?>
@@ -58,16 +76,18 @@
                     <?php endif; ?>
                     <div class="flex-grow-1">
                         <h5 class="mb-1">
-                            <a href="<?php echo (defined('BASE_URL') ? BASE_URL : '/projet'); ?>/communautes/<?php echo $communaute['id']; ?>" class="text-decoration-none text-white">
+                            <a href="<?php echo (defined('BASE_URL') ? BASE_URL : ''); ?>/communautes/<?php echo $communaute['id']; ?>" class="text-decoration-none text-white">
                                 <?php echo htmlspecialchars($communaute['nom']); ?>
                             </a>
                         </h5>
-                        <small class="text-muted d-block">
-                            <i class="fas fa-user me-1"></i>
-                            Créée par 
-                            <a href="<?php echo (defined('BASE_URL') ? BASE_URL : '/projet'); ?>/membres/<?php echo $communaute['createur_id']; ?>" class="text-decoration-none text-primary">
-                                <?php echo htmlspecialchars($communaute['prenom'] . ' ' . $communaute['nom']); ?>
-                            </a>
+                        <small class="text-muted d-flex align-items-center gap-2">
+                            <i class="fas fa-user"></i>
+                            <?php if (!empty($communaute['profile_picture_url'])): ?>
+                                <img src="<?php echo htmlspecialchars($__uploadsBase . '/' . $communaute['profile_picture_url']); ?>" alt="Avatar" class="rounded-circle" style="width:22px;height:22px;object-fit:cover;border:1px solid rgba(0,255,65,0.6);">
+                            <?php endif; ?>
+                            <span>
+                                Créée par <?php echo htmlspecialchars($communaute['createur_display_name'] ?? ('Utilisateur #' . (int)($communaute['createur_id'] ?? 0))); ?>
+                            </span>
                         </small>
                         <small class="text-muted d-block mt-1">
                             <i class="fas fa-calendar me-1"></i>
@@ -101,10 +121,6 @@
                 
                 <div class="community-stats d-flex justify-content-between text-center mb-3">
                     <div>
-                        <small class="text-muted d-block">Membres</small>
-                        <div class="fw-bold text-primary"><?php echo $membres_count; ?></div>
-                    </div>
-                    <div>
                         <small class="text-muted d-block">Publications</small>
                         <div class="fw-bold text-success"><?php echo $publications_count; ?></div>
                     </div>
@@ -125,22 +141,34 @@
                 
                 <div class="d-flex flex-wrap gap-3 mt-3">
                     <!-- Bouton pour voir les détails de la communauté -->
-                    <a href="<?php echo (defined('BASE_URL') ? BASE_URL : '/projet'); ?>/communautes/<?php echo $communaute['id']; ?>" class="btn btn-info btn-sm flex-fill">
+                    <a href="<?php echo (defined('BASE_URL') ? BASE_URL : ''); ?>/communautes/<?php echo $communaute['id']; ?>" class="btn btn-info btn-sm flex-fill">
                         <i class="fas fa-info-circle me-1"></i>Détails
                     </a>
                     
                     <!-- BOUTON MODIFIÉ : Redirige vers les publications filtrées par communauté -->
-                    <a href="<?php echo (defined('BASE_URL') ? BASE_URL : '/projet'); ?>/publications?communaute=<?php echo $communaute['id']; ?>" class="btn btn-primary btn-sm flex-fill">
+                    <a href="<?php echo (defined('BASE_URL') ? BASE_URL : ''); ?>/publications?communaute=<?php echo $communaute['id']; ?>" class="btn btn-primary btn-sm flex-fill">
                         <i class="fas fa-eye me-1"></i>Publications
                     </a>
+
+                        <?php if (isset($_SESSION['user_id']) && (int)$_SESSION['user_id'] !== (int)$communaute['createur_id']): ?>
+                            <?php if (!empty($communaute['has_joined'])): ?>
+                                <form method="POST" action="<?php echo (defined('BASE_URL') ? BASE_URL : ''); ?>/communautes/<?php echo $communaute['id']; ?>/leave" class="flex-fill" style="display:inline;">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm w-100">Quitter</button>
+                                </form>
+                            <?php else: ?>
+                                <form method="POST" action="<?php echo (defined('BASE_URL') ? BASE_URL : ''); ?>/communautes/<?php echo $communaute['id']; ?>/join" class="flex-fill" style="display:inline;">
+                                    <button type="submit" class="btn btn-success btn-sm w-100">Rejoindre</button>
+                                </form>
+                            <?php endif; ?>
+                        <?php endif; ?>
                     
                     <!-- Boutons supplémentaires pour mes communautés -->
                     <?php if ($is_my_community): ?>
                     <div class="btn-group w-100 gap-2 mt-2">
-                        <a href="<?php echo (defined('BASE_URL') ? BASE_URL : '/projet'); ?>/admin/communautes/<?php echo $communaute['id']; ?>/edit" class="btn btn-warning btn-sm" title="Modifier">
+                        <a href="<?php echo (defined('BASE_URL') ? BASE_URL : ''); ?>/admin/communautes/<?php echo $communaute['id']; ?>/edit" class="btn btn-warning btn-sm" title="Modifier">
                             <i class="fas fa-edit me-1"></i>Modifier
                         </a>
-                        <form action="<?php echo (defined('BASE_URL') ? BASE_URL : '/projet'); ?>/admin/communautes/<?php echo $communaute['id']; ?>/delete" method="POST" class="d-inline">
+                        <form action="<?php echo (defined('BASE_URL') ? BASE_URL : ''); ?>/admin/communautes/<?php echo $communaute['id']; ?>/delete" method="POST" class="d-inline">
                             <button type="submit" class="btn btn-danger btn-sm" 
                                     onclick="return confirm('Êtes-vous sûr de vouloir supprimer cette communauté ?')"
                                     title="Supprimer">
@@ -159,7 +187,7 @@
                 <i class="fas fa-users fa-3x text-muted mb-3"></i>
                 <h3>Aucune communauté trouvée</h3>
                 <p class="text-muted mb-4">Soyez le premier à créer une communauté !</p>
-                <a href="<?php echo (defined('BASE_URL') ? BASE_URL : '/projet'); ?>/communautes/create" class="btn btn-primary">
+                <a href="<?php echo (defined('BASE_URL') ? BASE_URL : ''); ?>/communautes/create" class="btn btn-primary">
                     <i class="fas fa-plus me-2"></i>Créer la première communauté
                 </a>
             </div>
@@ -168,13 +196,19 @@
 </div>
 
 <script>
-function updateSort() {
-    const sortValue = document.getElementById('sortOrder').value;
+function applyCommunityFilters() {
+    const sortValue = document.getElementById('sortOrder')?.value || 'date_creation_desc';
     const [order_by, order_dir] = sortValue.split('_');
-    
+    const categorie = document.getElementById('categoryFilter')?.value || '';
+
     const url = new URL(window.location.href);
     url.searchParams.set('order_by', order_by);
     url.searchParams.set('order_dir', order_dir);
+    if (categorie) {
+        url.searchParams.set('categorie', categorie);
+    } else {
+        url.searchParams.delete('categorie');
+    }
     window.location.href = url.toString();
 }
 </script>

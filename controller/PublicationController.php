@@ -1,16 +1,35 @@
 
 <?php
+
+require_once dirname(__DIR__) . '/tools/OpenAIClient.php';
+require_once dirname(__DIR__) . '/tools/GeminiClient.php';
+
 class PublicationController {
     private $publicationModel;
     private $communauteModel;
     private $validation;
-    private $membreModel;
 
     public function __construct($db) {
         $this->publicationModel = new Publication($db);
         $this->communauteModel = new Communaute($db);
         $this->validation = new Validation();
-        $this->membreModel = new Membre($db);
+    }
+
+    private function getLoginUrl(): string {
+        $base = defined('BASE_URL') ? (string) BASE_URL : '';
+        $root = rtrim(str_replace('\\', '/', dirname($base)), '/');
+        if ($root === '.' || $root === '/') {
+            $root = '';
+        }
+        return $root . '/gaming_museum/view/frontoffice/login.php';
+    }
+
+    private function requireLogin(): void {
+        if (!isset($_SESSION['user_id'])) {
+            $_SESSION['error_message'] = "Veuillez vous connecter pour continuer.";
+            header('Location: ' . $this->getLoginUrl());
+            exit;
+        }
     }
 
     // === FRONT OFFICE ===
@@ -19,19 +38,22 @@ class PublicationController {
         $order_by = $_GET['order_by'] ?? 'date_publication';
         $order_dir = $_GET['order_dir'] ?? 'DESC';
         $communaute_id = $_GET['communaute'] ?? null;
+
+        $selectedCategorie = trim((string) ($_GET['categorie'] ?? ''));
+        $categories = $this->communauteModel->getCategories();
         
         if ($communaute_id) {
-            $publications = $this->publicationModel->readByCommunauteOrdered($communaute_id, $order_by, $order_dir);
+            $publications = $this->publicationModel->readOrderedFiltered($order_by, $order_dir, (int) $communaute_id, $selectedCategorie);
             $this->communauteModel->id = $communaute_id;
             $communaute_info = $this->communauteModel->read_single() ? $this->communauteModel : null;
         } else {
-            $publications = $this->publicationModel->readOrdered($order_by, $order_dir);
+            $publications = $this->publicationModel->readOrderedFiltered($order_by, $order_dir, null, $selectedCategorie);
             $communaute_info = null;
         }
         
         $title = $communaute_info ? "Publications - " . $communaute_info->nom : "Publications récentes";
 
-        if (empty($publications) || !is_array($publications)) {
+        if ((empty($publications) || !is_array($publications)) && !$communaute_id && $selectedCategorie === '') {
             $fallback = $this->publicationModel->getLatest(10);
             if (!empty($fallback)) {
                 $publications = $fallback;
@@ -59,8 +81,27 @@ class PublicationController {
     }
 
     public function createFront() {
+        $this->requireLogin();
         $communautes_result = $this->communauteModel->read();
-        $communautes = $communautes_result->fetchAll(PDO::FETCH_ASSOC);
+        $communautesRaw = $communautes_result->fetchAll(PDO::FETCH_ASSOC);
+
+        // Nettoyer la liste: éviter doublons éventuels et garantir un libellé affichable
+        $communautesById = [];
+        foreach ($communautesRaw as $c) {
+            $cid = isset($c['id']) ? (int)$c['id'] : 0;
+            if ($cid <= 0) continue;
+            if (!isset($communautesById[$cid])) {
+                $name = trim((string)($c['nom'] ?? ''));
+                if ($name === '') {
+                    $c['nom'] = 'Communauté #' . $cid;
+                }
+                $communautesById[$cid] = $c;
+            }
+        }
+        $communautes = array_values($communautesById);
+        usort($communautes, function ($a, $b) {
+            return strcasecmp((string)($a['nom'] ?? ''), (string)($b['nom'] ?? ''));
+        });
         
         // Intégrer l'assistant IA
         $aiAssistant = $this->addAIAssistantToForm();
@@ -88,7 +129,7 @@ class PublicationController {
                         </div>
                     <?php endif; ?>
 
-                    <form action="/projet/publications/create" method="POST" enctype="multipart/form-data" id="publicationForm">
+                    <form action="<?php echo BASE_URL; ?>/publications/create" method="POST" enctype="multipart/form-data" id="publicationForm">
                         <!-- Sélection de la communauté -->
                         <div class="mb-4">
                             <label for="communaute_id" class="form-label">Communauté *</label>
@@ -132,7 +173,7 @@ class PublicationController {
 
                         <!-- Boutons d'action -->
                         <div class="d-flex gap-2 justify-content-end">
-                            <a href="/projet/publications" class="btn btn-secondary">
+                            <a href="<?php echo BASE_URL; ?>/publications" class="btn btn-secondary">
                                 <i class="fas fa-arrow-left me-2"></i>Annuler
                             </a>
                             <button type="submit" class="btn btn-primary" id="submitBtn">
@@ -145,17 +186,25 @@ class PublicationController {
         </div>
 
         <script>
-        // Compteur de caractères
-        document.getElementById('contenu').addEventListener('input', function() {
-            const length = this.value.length;
-            document.getElementById('charCount').textContent = length + '/1000 caractères';
-            
+        function updateCharCount() {
+            const field = document.getElementById('contenu');
+            const counter = document.getElementById('charCount');
+            if (!field || !counter) return;
+
+            const length = field.value.length;
+            counter.textContent = length + '/1000 caractères';
+
             if (length > 1000) {
-                document.getElementById('charCount').classList.add('text-danger');
+                counter.classList.add('text-danger');
             } else {
-                document.getElementById('charCount').classList.remove('text-danger');
+                counter.classList.remove('text-danger');
             }
-        });
+        }
+
+        // Compteur de caractères
+        document.getElementById('contenu').addEventListener('input', updateCharCount);
+        // Initialiser (old_input / ai_content)
+        document.addEventListener('DOMContentLoaded', updateCharCount);
 
         // Aperçu des images
         document.getElementById('images').addEventListener('change', function(e) {
@@ -227,22 +276,19 @@ class PublicationController {
     }
 
     public function storeFront($data) {
+        $this->requireLogin();
         $errors = $this->validatePublicationData($data);
         
         if (!empty($errors)) {
             $_SESSION['form_errors'] = $errors;
             $_SESSION['old_input'] = $data;
-            header('Location: /projet/publications/create');
+            header('Location: ' . BASE_URL . '/publications/create');
             exit;
         }
 
         $this->publicationModel->communaute_id = $data['communaute_id'];
         $sessionUserId = $_SESSION['user_id'] ?? null;
-        $membreId = null;
-        if ($sessionUserId) {
-            $membreId = $this->membreModel->findByUserId($sessionUserId);
-        }
-        $this->publicationModel->auteur_id = $membreId ?? ($sessionUserId ?? 1);
+        $this->publicationModel->auteur_id = $sessionUserId ?? 1;
         $this->publicationModel->user_id = $sessionUserId ?? null;
         $this->publicationModel->contenu = $data['contenu'];
         
@@ -260,7 +306,8 @@ class PublicationController {
                     $upload_path = $upload_dir . $image_name;
                     
                     if (move_uploaded_file($tmp_name, $upload_path)) {
-                        $images[] = '/projet/' . $upload_path;
+                        $prefix = (BASE_URL === '' ? '' : BASE_URL);
+                        $images[] = $prefix . '/' . $upload_path;
                     }
                 }
             }
@@ -272,7 +319,7 @@ class PublicationController {
 
         if($this->publicationModel->create()) {
             $_SESSION['success_message'] = "Publication créée avec succès !";
-            header('Location: /projet/publications?communaute=' . $data['communaute_id']);
+            header('Location: ' . BASE_URL . '/publications?communaute=' . $data['communaute_id']);
             exit;
         } else {
             $this->showError("Erreur lors de la création de la publication");
@@ -280,12 +327,13 @@ class PublicationController {
     }
 
     public function editFront($id) {
+        $this->requireLogin();
         $this->publicationModel->id = $id;
         
         if($this->publicationModel->read_single()) {
             if (!$this->canUserEditPublication($this->publicationModel->auteur_id)) {
                 $_SESSION['error_message'] = "Vous n'avez pas la permission de modifier cette publication";
-                header('Location: /projet/publications/' . $id);
+                header('Location: ' . BASE_URL . '/publications/' . $id);
                 exit;
             }
             
@@ -301,13 +349,13 @@ class PublicationController {
             } else {
                 echo '<div class="container mt-5">';
                 echo '<h1>Modifier la publication</h1>';
-                echo '<form method="POST" action="/projet/publications/update/' . $id . '" enctype="multipart/form-data">';
+                echo '<form method="POST" action="' . BASE_URL . '/publications/update/' . $id . '" enctype="multipart/form-data">';
                 echo '<div class="mb-3">';
                 echo '<label for="contenu" class="form-label">Contenu</label>';
                 echo '<textarea class="form-control" id="contenu" name="contenu" rows="6" required>' . htmlspecialchars($this->publicationModel->contenu) . '</textarea>';
                 echo '</div>';
                 echo '<div class="d-flex gap-2">';
-                echo '<a href="/projet/publications" class="btn btn-secondary">Annuler</a>';
+                echo '<a href="' . BASE_URL . '/publications" class="btn btn-secondary">Annuler</a>';
                 echo '<button type="submit" class="btn btn-primary">Mettre à jour</button>';
                 echo '</div>';
                 echo '</form>';
@@ -322,17 +370,18 @@ class PublicationController {
     }
 
     public function updateFront($id, $data) {
+        $this->requireLogin();
         $this->publicationModel->id = $id;
         
         if(!$this->publicationModel->read_single()) {
             $_SESSION['error_message'] = "Publication non trouvée";
-            header('Location: /projet/publications');
+            header('Location: ' . BASE_URL . '/publications');
             exit;
         }
         
         if (!$this->canUserEditPublication($this->publicationModel->auteur_id)) {
             $_SESSION['error_message'] = "Vous n'avez pas la permission de modifier cette publication";
-            header('Location: /projet/publications/' . $id);
+            header('Location: ' . BASE_URL . '/publications/' . $id);
             exit;
         }
         
@@ -343,7 +392,7 @@ class PublicationController {
         if (!empty($errors)) {
             $_SESSION['form_errors'] = $errors;
             $_SESSION['old_input'] = $data;
-            header('Location: /projet/publications/edit/' . $id);
+            header('Location: ' . BASE_URL . '/publications/edit/' . $id);
             exit;
         }
 
@@ -365,7 +414,8 @@ class PublicationController {
                     $upload_path = $upload_dir . $image_name;
                     
                     if (move_uploaded_file($tmp_name, $upload_path)) {
-                        $newImages[] = '/projet/' . $upload_path;
+                        $prefix = (BASE_URL === '' ? '' : BASE_URL);
+                        $newImages[] = $prefix . '/' . $upload_path;
                     }
                 }
             }
@@ -378,27 +428,28 @@ class PublicationController {
 
         if($this->publicationModel->updateWithImages()) {
             $_SESSION['success_message'] = "Publication modifiée avec succès !";
-            header('Location: /projet/publications?communaute=' . $this->publicationModel->communaute_id);
+            header('Location: ' . BASE_URL . '/publications?communaute=' . $this->publicationModel->communaute_id);
             exit;
         } else {
             $_SESSION['error_message'] = "Erreur lors de la modification de la publication";
-            header('Location: /projet/publications/edit/' . $id);
+            header('Location: ' . BASE_URL . '/publications/edit/' . $id);
             exit;
         }
     }
 
     public function deleteFront($id) {
+        $this->requireLogin();
         $this->publicationModel->id = $id;
         
         if(!$this->publicationModel->read_single()) {
             $_SESSION['error_message'] = "Publication non trouvée";
-            header('Location: /projet/publications');
+            header('Location: ' . BASE_URL . '/publications');
             exit;
         }
         
         if (!$this->canUserEditPublication($this->publicationModel->auteur_id)) {
             $_SESSION['error_message'] = "Vous n'avez pas la permission de supprimer cette publication";
-            header('Location: /projet/publications/' . $id);
+            header('Location: ' . BASE_URL . '/publications/' . $id);
             exit;
         }
         
@@ -406,18 +457,22 @@ class PublicationController {
         
         if($this->publicationModel->delete()) {
             $_SESSION['success_message'] = "Publication supprimée avec succès !";
-            header('Location: /projet/publications?communaute=' . $communaute_id);
+            header('Location: ' . BASE_URL . '/publications?communaute=' . $communaute_id);
             exit;
         } else {
             $_SESSION['error_message'] = "Erreur lors de la suppression de la publication";
-            header('Location: /projet/publications/' . $id);
+            header('Location: ' . BASE_URL . '/publications/' . $id);
             exit;
         }
     }
 
     // === BACK OFFICE ===
     public function indexBack() {
-        $publications = $this->publicationModel->read();
+        $this->requireLogin();
+
+        $selectedCategorie = trim((string) ($_GET['categorie'] ?? ''));
+        $categories = $this->communauteModel->getCategories();
+        $publications = $this->publicationModel->readOrderedFiltered('date_publication', 'DESC', null, $selectedCategorie);
         
         $title = "Gestion des publications";
         ob_start();
@@ -427,6 +482,7 @@ class PublicationController {
     }
 
     public function showBack($id) {
+        $this->requireLogin();
         $this->publicationModel->id = $id;
         
         if($this->publicationModel->read_single()) {
@@ -441,6 +497,7 @@ class PublicationController {
     }
 
     public function create() {
+        $this->requireLogin();
         $communautes_result = $this->communauteModel->read();
         $communautes = $communautes_result->fetchAll(PDO::FETCH_ASSOC);
         
@@ -452,22 +509,19 @@ class PublicationController {
     }
 
     public function store($data) {
+        $this->requireLogin();
         $errors = $this->validatePublicationData($data);
         
         if (!empty($errors)) {
             $_SESSION['form_errors'] = $errors;
             $_SESSION['old_input'] = $data;
-            header('Location: /projet/admin/publications/create');
+            header('Location: ' . BASE_URL . '/admin/publications/create');
             exit;
         }
 
         $this->publicationModel->communaute_id = $data['communaute_id'];
         $sessionUserId = $_SESSION['user_id'] ?? null;
-        $membreId = null;
-        if ($sessionUserId) {
-            $membreId = $this->membreModel->findByUserId($sessionUserId);
-        }
-        $this->publicationModel->auteur_id = $membreId ?? ($sessionUserId ?? 1);
+        $this->publicationModel->auteur_id = $sessionUserId ?? 1;
         $this->publicationModel->user_id = $sessionUserId ?? null;
         $this->publicationModel->contenu = $data['contenu'];
 
@@ -486,7 +540,7 @@ class PublicationController {
 
         if($this->publicationModel->create()) {
             $_SESSION['success_message'] = "Publication créée avec succès";
-            header('Location: /projet/admin/publications');
+            header('Location: ' . BASE_URL . '/admin/publications');
             exit;
         } else {
             $this->showError("Erreur lors de la création de la publication");
@@ -494,6 +548,7 @@ class PublicationController {
     }
 
     public function edit($id) {
+        $this->requireLogin();
         $this->publicationModel->id = $id;
         
         if($this->publicationModel->read_single()) {
@@ -511,12 +566,13 @@ class PublicationController {
     }
 
     public function update($id, $data) {
+        $this->requireLogin();
         $errors = $this->validatePublicationData($data);
         
         if (!empty($errors)) {
             $_SESSION['form_errors'] = $errors;
             $_SESSION['old_input'] = $data;
-            header('Location: /projet/admin/publications/' . $id . '/edit');
+            header('Location: ' . BASE_URL . '/admin/publications/' . $id . '/edit');
             exit;
         }
 
@@ -538,7 +594,7 @@ class PublicationController {
 
         if($this->publicationModel->update()) {
             $_SESSION['success_message'] = "Publication mise à jour avec succès";
-            header('Location: /projet/admin/publications/' . $id);
+            header('Location: ' . BASE_URL . '/admin/publications/' . $id);
             exit;
         } else {
             $this->showError("Erreur lors de la mise à jour de la publication");
@@ -546,11 +602,12 @@ class PublicationController {
     }
 
     public function delete($id) {
+        $this->requireLogin();
         $this->publicationModel->id = $id;
         
         if($this->publicationModel->delete()) {
             $_SESSION['success_message'] = "Publication supprimée avec succès";
-            header('Location: /projet/admin/publications');
+            header('Location: ' . BASE_URL . '/admin/publications');
             exit;
         } else {
             $this->showError("Erreur lors de la suppression de la publication");
@@ -637,7 +694,31 @@ class PublicationController {
         </div>
 
         <script>
-        const baseUrl = '<?php echo BASE_URL ?? ''; ?>';
+        const baseUrlFromPhp = '<?php echo defined('BASE_URL') ? BASE_URL : ''; ?>';
+        function getProjetBaseUrl() {
+            if (baseUrlFromPhp && baseUrlFromPhp !== 'BASE_URL') return baseUrlFromPhp;
+            const parts = window.location.pathname.split('/').filter(Boolean);
+            const idx = parts.indexOf('projet');
+            if (idx >= 0) return '/' + parts.slice(0, idx + 1).join('/');
+            return '';
+        }
+        const baseUrl = getProjetBaseUrl();
+        window.lastAIContent = '';
+
+        async function postAI(formData) {
+            const endpoint = baseUrl + '/ai-assistant/handle';
+            const response = await fetch(endpoint, { method: 'POST', body: formData });
+            const ct = (response.headers.get('content-type') || '').toLowerCase();
+            if (!ct.includes('application/json')) {
+                const text = await response.text();
+                throw new Error('Réponse non-JSON (' + response.status + ')\n' + text.substring(0, 300));
+            }
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error((data && data.error) ? data.error : ('Erreur HTTP ' + response.status));
+            }
+            return data;
+        }
         
         async function generateWithAI() {
             const theme = document.getElementById('aiTheme').value.trim();
@@ -663,15 +744,11 @@ class PublicationController {
                 const formData = new FormData();
                 formData.append('action', 'generate');
                 formData.append('theme', theme);
-                
-                const response = await fetch(baseUrl + '/ai-assistant/handle', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const data = await response.json();
+
+                const data = await postAI(formData);
                 
                 if (data.success) {
+                    window.lastAIContent = data.content || '';
                     document.getElementById('aiResult').innerHTML = `
                         <div class="alert alert-success">
                             <i class="fas fa-check-circle me-2"></i>Suggestion générée avec succès !
@@ -686,9 +763,10 @@ class PublicationController {
                     `;
                 }
             } catch (error) {
+                console.error('Erreur IA:', error);
                 document.getElementById('aiResult').innerHTML = `
                     <div class="alert alert-danger">
-                        <i class="fas fa-exclamation-circle me-2"></i>Erreur de connexion
+                        <i class="fas fa-exclamation-circle me-2"></i>${(error && error.message) ? error.message : 'Erreur de connexion'}
                     </div>
                 `;
             } finally {
@@ -722,15 +800,11 @@ class PublicationController {
                 const formData = new FormData();
                 formData.append('action', 'improve');
                 formData.append('text', text);
-                
-                const response = await fetch(baseUrl + '/ai-assistant/handle', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const data = await response.json();
+
+                const data = await postAI(formData);
                 
                 if (data.success) {
+                    window.lastAIContent = data.content || '';
                     document.getElementById('aiResult').innerHTML = `
                         <div class="alert alert-success">
                             <i class="fas fa-check-circle me-2"></i>Texte amélioré avec succès !
@@ -758,9 +832,10 @@ class PublicationController {
                     `;
                 }
             } catch (error) {
+                console.error('Erreur IA:', error);
                 document.getElementById('aiResult').innerHTML = `
                     <div class="alert alert-danger">
-                        <i class="fas fa-exclamation-circle me-2"></i>Erreur de connexion
+                        <i class="fas fa-exclamation-circle me-2"></i>${(error && error.message) ? error.message : 'Erreur de connexion'}
                     </div>
                 `;
             } finally {
@@ -771,10 +846,9 @@ class PublicationController {
         }
         
         function copyAIResult() {
-            const resultDiv = document.getElementById('aiResult');
-            const text = resultDiv.textContent || resultDiv.innerText;
+            const text = (window.lastAIContent || '').trim();
             
-            if (text && !text.includes('Le résultat apparaîtra ici')) {
+            if (text) {
                 navigator.clipboard.writeText(text).then(() => {
                     alert('✅ Résultat copié dans le presse-papier !');
                 }).catch(err => {
@@ -787,10 +861,9 @@ class PublicationController {
         }
         
         function useAIResult() {
-            const resultDiv = document.getElementById('aiResult');
-            const text = resultDiv.textContent || resultDiv.innerText;
+            const text = (window.lastAIContent || '').trim();
             
-            if (text && !text.includes('Le résultat apparaîtra ici')) {
+            if (text) {
                 // Ouvrir une nouvelle publication avec le texte généré
                 window.open(baseUrl + '/publications/create?ai_content=' + encodeURIComponent(text), '_blank');
             } else {
@@ -815,19 +888,197 @@ class PublicationController {
         $content = ob_get_clean();
         include dirname(__DIR__) . '/view/frontoffice/layout.php';
     }
+
+    private function textLen(string $text): int {
+        if (function_exists('mb_strlen')) {
+            return (int) mb_strlen($text, 'UTF-8');
+        }
+        return (int) strlen($text);
+    }
+
+    private function textSubstr(string $text, int $start, int $length): string {
+        if (function_exists('mb_substr')) {
+            return (string) mb_substr($text, $start, $length, 'UTF-8');
+        }
+        return (string) substr($text, $start, $length);
+    }
+
+    private function improvePublicationText(string $text): string {
+        $t = trim($text);
+        // Normaliser les sauts de ligne
+        $t = preg_replace("/\r\n?/", "\n", $t);
+        // Nettoyage des espaces
+        $t = preg_replace("/[\t ]+/", " ", $t);
+        $t = preg_replace("/ *\n{3,} */", "\n\n", $t);
+        $t = preg_replace("/ +([,.!?;:])/u", "$1", $t);
+        $t = preg_replace("/([,.!?;:])(?=\S)/u", "$1 ", $t);
+        $t = trim($t);
+        $t = preg_replace("/[ ]{2,}/", " ", $t);
+
+        // Si l'utilisateur a déjà collé une ancienne sortie IA, enlever l'entête
+        $t = preg_replace("/^\s*✨\s*\*\*Version\s+am\p{L}+\s*:\*\*\s*/u", "", $t);
+        $t = trim($t);
+
+        $len = $this->textLen($t);
+
+        // Si texte très long (proche de la limite), ne pas ajouter trop de contenu
+        $lightOnly = $len > 880;
+
+        // Capitaliser le premier caractère si utile
+        if ($t !== '') {
+            $first = $this->textSubstr($t, 0, 1);
+            $rest = $this->textSubstr($t, 1, $this->textLen($t));
+            if (preg_match('/[a-zà-ÿ]/u', $first)) {
+                if (function_exists('mb_strtoupper')) {
+                    $first = mb_strtoupper($first, 'UTF-8');
+                } else {
+                    $first = strtoupper($first);
+                }
+                $t = $first . $rest;
+            }
+        }
+
+        // Petites reformulations sans changer le sens
+        $t = preg_replace('/\bje\s+veux\s+partager\b/iu', 'Je voulais partager', $t, 1);
+
+        // Capitaliser après ponctuation / paragraphes
+        $t = preg_replace_callback('/(^|[.!?]\s+|\n\n+)([a-zà-ÿ])/u', function ($m) {
+            $prefix = $m[1];
+            $ch = $m[2];
+            if (function_exists('mb_strtoupper')) {
+                $ch = mb_strtoupper($ch, 'UTF-8');
+            } else {
+                $ch = strtoupper($ch);
+            }
+            return $prefix . $ch;
+        }, $t);
+
+        // Ajouter une structure lisible (paragraphes) si texte dense
+        if (!$lightOnly && strpos($t, "\n") === false && $this->textLen($t) > 220) {
+            $sentences = preg_split('/(?<=[.!?])\s+/u', $t) ?: [$t];
+            $rebuilt = '';
+            $count = 0;
+            foreach ($sentences as $s) {
+                $s = trim($s);
+                if ($s === '') continue;
+                $rebuilt .= ($rebuilt === '' ? '' : ' ') . $s;
+                $count++;
+                if ($count % 2 === 0) {
+                    $rebuilt .= "\n\n";
+                }
+            }
+            $t = trim($rebuilt);
+        }
+
+        // Ajouter une petite intro + question (si absent)
+        $hasQuestion = (strpos($t, '?') !== false)
+            || (bool) preg_match('/\b(qu[’\']?en\s+pensez|vous\s+en\s+pensez|pensez\s*-?vous|quels?\s+conseils?|des\s+avis|vos\s+avis)\b/iu', $t);
+        if (!$lightOnly) {
+            $hasGreeting = (bool) preg_match('/^(salut|bonjour|coucou|hey|hello)\b/iu', $t);
+            if (!$hasGreeting) {
+                $t = "Salut à tous !\n\n" . $t;
+            }
+            // Si le texte ressemble à une question mais n'a pas de '?', ajouter le point d'interrogation
+            if (strpos($t, '?') === false && preg_match('/\b(vous\s+en\s+pensez\s+quoi|qu[’\']?en\s+pensez|pensez\s*-?vous)\s*$/iu', $t)) {
+                $t = rtrim($t);
+                $t .= ' ?';
+            }
+            if (!$hasQuestion) {
+                $t = rtrim($t);
+                if (!preg_match('/[.!?]$/u', $t)) {
+                    $t .= '.';
+                }
+                $t .= "\n\nQu'en pensez-vous ?";
+            }
+        } else {
+            // Assurer une ponctuation finale
+            $t = rtrim($t);
+            if ($t !== '' && !preg_match('/[.!?]$/u', $t)) {
+                $t .= '.';
+            }
+        }
+
+        // Respecter la limite de 1000 caractères côté formulaire
+        if ($this->textLen($t) > 1000) {
+            $t = rtrim($this->textSubstr($t, 0, 997));
+            $t .= '...';
+        }
+
+        return $t;
+    }
+
+    /**
+     * @param array<int, array{role:string, content:string}> $messages
+     */
+    private function aiChat(array $messages, int $maxTokens = 450, float $temperature = 0.2): string
+    {
+        $provider = '';
+        if (defined('AI_PROVIDER')) {
+            $provider = strtolower(trim((string) AI_PROVIDER));
+        } else {
+            $provider = strtolower(trim((string) getenv('AI_PROVIDER')));
+        }
+
+        $hasGeminiKey = (defined('GEMINI_API_KEY') && trim((string) GEMINI_API_KEY) !== '')
+            || (trim((string) getenv('GEMINI_API_KEY')) !== '');
+
+        if ($provider === '') {
+            $provider = $hasGeminiKey ? 'gemini' : 'openai';
+        }
+
+        if ($provider === 'gemini') {
+            $client = new GeminiClient();
+            return $client->chat($messages, $maxTokens, $temperature);
+        }
+
+        $client = new OpenAIClient();
+        return $client->chat($messages, $maxTokens, $temperature);
+    }
     
     public function handleAIAssistant() {
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
         
         $action = $_POST['action'] ?? '';
         
         switch ($action) {
             case 'generate':
                 $theme = $_POST['theme'] ?? '';
-                
-                if (empty($theme)) {
-                    echo json_encode(['success' => false, 'error' => 'Thème requis']);
+
+                $theme = trim((string) $theme);
+                if ($theme === '') {
+                    echo json_encode(['success' => false, 'error' => 'Thème requis'], JSON_UNESCAPED_UNICODE);
                     exit;
+                }
+
+                if (function_exists('mb_strlen') ? (mb_strlen($theme, 'UTF-8') > 120) : (strlen($theme) > 120)) {
+                    echo json_encode(['success' => false, 'error' => 'Thème trop long (max 120 caractères).'], JSON_UNESCAPED_UNICODE);
+                    exit;
+                }
+
+                try {
+                    $system = "Tu es un assistant de rédaction pour un site de communautés gaming. "
+                        . "Réponds en français. "
+                        . "Génère UNE proposition de publication prête à poster sur le thème donné. "
+                        . "Contraintes: 450 à 850 caractères max, ton amical, 1 à 2 paragraphes, "
+                        . "et termine par une question pour lancer la discussion. "
+                        . "Pas de HTML, pas de markdown.";
+
+                    $messages = [
+                        ['role' => 'system', 'content' => $system],
+                        ['role' => 'user', 'content' => "Thème: " . $theme],
+                    ];
+
+                    $aiText = $this->aiChat($messages, 320, 0.7);
+                    $aiText = trim((string) $aiText);
+                    if ($aiText !== '' && $this->textLen($aiText) > 1000) {
+                        $aiText = rtrim($this->textSubstr($aiText, 0, 997)) . '...';
+                    }
+                    if ($aiText !== '') {
+                        echo json_encode(['success' => true, 'content' => $aiText], JSON_UNESCAPED_UNICODE);
+                        exit;
+                    }
+                } catch (Throwable $e) {
+                    // Fallback below
                 }
                 
                 // Suggestions prédéfinies
@@ -844,30 +1095,57 @@ class PublicationController {
                 echo json_encode([
                     'success' => true,
                     'content' => $randomSuggestion
-                ]);
+                ], JSON_UNESCAPED_UNICODE);
                 break;
                 
             case 'improve':
                 $text = $_POST['text'] ?? '';
-                
-                if (empty($text)) {
-                    echo json_encode(['success' => false, 'error' => 'Texte requis']);
+
+                $text = trim((string) $text);
+                if ($text === '') {
+                    echo json_encode(['success' => false, 'error' => 'Texte requis'], JSON_UNESCAPED_UNICODE);
                     exit;
                 }
+
+                if ($this->textLen($text) > 2000) {
+                    echo json_encode(['success' => false, 'error' => 'Texte trop long (max 2000 caractères).'], JSON_UNESCAPED_UNICODE);
+                    exit;
+                }
+
+                try {
+                    $system = "Tu es un assistant de rédaction. Réécris le texte en français pour qu'il soit plus clair, "
+                        . "plus agréable à lire et bien ponctué, sans changer le sens. "
+                        . "Garde un ton amical et termine par une question si ce n'est pas déjà le cas. "
+                        . "Limite: 1000 caractères max. Pas de HTML, pas de markdown.";
+
+                    $messages = [
+                        ['role' => 'system', 'content' => $system],
+                        ['role' => 'user', 'content' => "Texte à améliorer:\n" . $text],
+                    ];
+
+                    $aiText = $this->aiChat($messages, 420, 0.35);
+                    $aiText = trim((string) $aiText);
+                    if ($aiText !== '' && $this->textLen($aiText) > 1000) {
+                        $aiText = rtrim($this->textSubstr($aiText, 0, 997)) . '...';
+                    }
+                    if ($aiText !== '') {
+                        echo json_encode(['success' => true, 'content' => $aiText], JSON_UNESCAPED_UNICODE);
+                        exit;
+                    }
+                } catch (Throwable $e) {
+                    // Fallback to local improvement below
+                }
                 
-                // Amélioration simple
-                $improvedText = "✨ **Version améliorée :**\n\n" . 
-                               ucfirst(trim($text)) . 
-                               "\n\nJ'espère que cette version vous convient mieux ! N'hésitez pas à l'adapter selon vos besoins.";
+                $improvedText = $this->improvePublicationText((string) $text);
                 
                 echo json_encode([
                     'success' => true,
                     'content' => $improvedText
-                ]);
+                ], JSON_UNESCAPED_UNICODE);
                 break;
                 
             default:
-                echo json_encode(['success' => false, 'error' => 'Action non reconnue']);
+                echo json_encode(['success' => false, 'error' => 'Action non reconnue'], JSON_UNESCAPED_UNICODE);
         }
         
         exit;
@@ -884,10 +1162,10 @@ class PublicationController {
             </div>
             <div class="card-body">
                 <div class="row g-3">
-                    <div class="col-md-6">
+                    <div class="col-md-12">
                         <div class="input-group">
                             <input type="text" class="form-control" id="quickTheme" placeholder="Entrez un thème...">
-                            <button class="btn btn-outline-primary" type="button" onclick="quickAIGenerate()" id="quickGenBtn">
+                            <button class="btn btn-outline-primary" type="button" id="quickGenBtn">
                                 <i class="fas fa-bolt"></i> Générer
                             </button>
                         </div>
@@ -896,12 +1174,12 @@ class PublicationController {
                 </div>
                 
                 <div class="mt-3" id="aiQuickResult" style="display: none;">
-                    <div class="alert alert-info">
+                    <div class="alert alert-info" data-persist="true">
                         <button type="button" class="btn-close float-end" onclick="document.getElementById('aiQuickResult').style.display='none'"></button>
                         <div id="aiQuickResultContent"></div>
                         <div class="mt-2">
-                            <button class="btn btn-sm btn-success" type="button" onclick="applyAIResult()">
-                                <i class="fas fa-check me-1"></i>Appliquer
+                            <button class="btn btn-sm btn-success" type="button" id="aiQuickAddBtn">
+                                <i class="fas fa-check me-1"></i>Ajouter
                             </button>
                             <button class="btn btn-sm btn-secondary" type="button" onclick="document.getElementById('aiQuickResult').style.display='none'">
                                 <i class="fas fa-times me-1"></i>Fermer
@@ -913,6 +1191,74 @@ class PublicationController {
         </div>
 
         <script>
+        const baseUrlFromPhp = '<?php echo defined('BASE_URL') ? BASE_URL : ''; ?>';
+        function getProjetBaseUrl() {
+            if (baseUrlFromPhp && baseUrlFromPhp !== 'BASE_URL') return baseUrlFromPhp;
+            const parts = window.location.pathname.split('/').filter(Boolean);
+            const idx = parts.indexOf('projet');
+            if (idx >= 0) return '/' + parts.slice(0, idx + 1).join('/');
+            return '';
+        }
+        const baseUrl = getProjetBaseUrl();
+
+        async function postAI(formData) {
+            const endpoint = baseUrl + '/ai-assistant/handle';
+            const response = await fetch(endpoint, { method: 'POST', body: formData });
+            const ct = (response.headers.get('content-type') || '').toLowerCase();
+            if (!ct.includes('application/json')) {
+                const text = await response.text();
+                throw new Error('Réponse non-JSON (' + response.status + ')');
+            }
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error((data && data.error) ? data.error : ('Erreur HTTP ' + response.status));
+            }
+            return data;
+        }
+
+        function ensureAIQuickResultElements() {
+            let wrapper = document.getElementById('aiQuickResult');
+            let content = document.getElementById('aiQuickResultContent');
+            if (wrapper && content) return { wrapper, content };
+
+            const host = document.querySelector('.ai-assistant-section .card-body')
+                || document.querySelector('.ai-assistant-section')
+                || document.body;
+
+            if (!wrapper) {
+                wrapper = document.createElement('div');
+                wrapper.id = 'aiQuickResult';
+                wrapper.className = 'mt-3';
+                wrapper.style.display = 'none';
+                wrapper.innerHTML = `
+                    <div class="alert alert-info" data-persist="true">
+                        <button type="button" class="btn-close float-end" onclick="document.getElementById('aiQuickResult').style.display='none'"></button>
+                        <div id="aiQuickResultContent"></div>
+                        <div class="mt-2">
+                            <button class="btn btn-sm btn-success" type="button" id="aiQuickAddBtn">
+                                <i class="fas fa-check me-1"></i>Ajouter
+                            </button>
+                            <button class="btn btn-sm btn-secondary" type="button" onclick="document.getElementById('aiQuickResult').style.display='none'">
+                                <i class="fas fa-times me-1"></i>Fermer
+                            </button>
+                        </div>
+                    </div>
+                `;
+                host.appendChild(wrapper);
+            }
+
+            // Rechercher le contenu dans le wrapper (plus robuste que document.getElementById)
+            content = wrapper.querySelector('#aiQuickResultContent') || document.getElementById('aiQuickResultContent');
+            if (!content) {
+                const alertBox = wrapper.querySelector('.alert') || wrapper;
+                content = document.createElement('div');
+                content.id = 'aiQuickResultContent';
+                alertBox.insertBefore(content, alertBox.firstChild);
+            }
+
+            return { wrapper, content };
+        }
+
         // Fonctions IA pour le formulaire
         async function quickAIGenerate() {
             const theme = document.getElementById('quickTheme').value.trim();
@@ -929,49 +1275,57 @@ class PublicationController {
                 return;
             }
             
-            // Désactiver le bouton
-            button.disabled = true;
-            const originalText = button.innerHTML;
-            button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            // Désactiver le bouton (si trouvé)
+            const originalText = button ? button.innerHTML : '';
+            if (button) {
+                button.disabled = true;
+                button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            }
             
             try {
                 // Appeler l'assistant IA
                 const formData = new FormData();
                 formData.append('action', 'generate');
                 formData.append('theme', theme);
-                
-                const response = await fetch('<?php echo BASE_URL ?? ''; ?>/ai-assistant/handle', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const data = await response.json();
+
+                const data = await postAI(formData);
                 
                 if (data.success) {
-                    // Afficher le résultat
-                    document.getElementById('aiQuickResultContent').innerHTML = 
-                        '<strong>✨ Suggestion générée :</strong><br><br>' + 
-                        data.content.replace(/\n/g, '<br>');
-                    document.getElementById('aiQuickResult').style.display = 'block';
+                    const els = ensureAIQuickResultElements();
+                    if (els && els.content && els.wrapper) {
+                        // Afficher le résultat
+                        els.content.innerHTML = 
+                            '<strong>✨ Suggestion générée :</strong><br><br>' + 
+                            data.content.replace(/\n/g, '<br>');
+                        els.wrapper.style.display = 'block';
+                    } else {
+                        // Fallback minimal
+                        window.currentAIResult = data.content;
+                        alert('Suggestion IA générée. Cliquez sur Appliquer si disponible.');
+                    }
                     
                     // Stocker le résultat pour l'appliquer
                     window.currentAIResult = data.content;
                     
                     // Scroll vers le résultat
-                    document.getElementById('aiQuickResult').scrollIntoView({ 
-                        behavior: 'smooth', 
-                        block: 'nearest' 
-                    });
+                    if (els && els.wrapper) {
+                        els.wrapper.scrollIntoView({ 
+                            behavior: 'smooth', 
+                            block: 'nearest' 
+                        });
+                    }
                 } else {
                     alert('Erreur : ' + data.error);
                 }
             } catch (error) {
                 console.error('Erreur IA:', error);
-                alert('Erreur de connexion avec l\'assistant IA');
+                alert((error && error.message) ? error.message : 'Erreur de connexion avec l\'assistant IA');
             } finally {
                 // Réactiver le bouton
-                button.disabled = false;
-                button.innerHTML = originalText;
+                if (button) {
+                    button.disabled = false;
+                    button.innerHTML = originalText;
+                }
             }
         }
         
@@ -991,49 +1345,62 @@ class PublicationController {
                 return;
             }
             
-            // Désactiver le bouton
-            button.disabled = true;
-            const originalText = button.innerHTML;
-            button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            // Désactiver le bouton (si trouvé)
+            const originalText = button ? button.innerHTML : '';
+            if (button) {
+                button.disabled = true;
+                button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            }
             
             try {
                 // Appeler l'assistant IA
                 const formData = new FormData();
                 formData.append('action', 'improve');
                 formData.append('text', text);
-                
-                const response = await fetch('<?php echo BASE_URL ?? ''; ?>/ai-assistant/handle', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const data = await response.json();
+
+                const data = await postAI(formData);
                 
                 if (data.success) {
-                    // Afficher le résultat
-                    document.getElementById('aiQuickResultContent').innerHTML = 
-                        '<strong>✅ Texte amélioré :</strong><br><br>' + 
-                        data.content.replace(/\n/g, '<br>');
-                    document.getElementById('aiQuickResult').style.display = 'block';
-                    
-                    // Stocker le résultat pour l'appliquer
+                    // Toujours stocker et appliquer directement dans le champ
                     window.currentAIResult = data.content;
+                    contenuField.value = data.content;
+                    if (typeof updateCharCount === 'function') updateCharCount();
+
+                    const els = ensureAIQuickResultElements();
+                    if (els && els.content && els.wrapper) {
+                        // Afficher le résultat
+                        els.content.innerHTML = 
+                            '<strong>✅ Texte amélioré :</strong><br><br>' + 
+                            data.content.replace(/\n/g, '<br>');
+                        els.wrapper.style.display = 'block';
+                    } else {
+                        alert('✅ Texte amélioré et appliqué.');
+                    }
+
+                    // Petit feedback même si le bloc est affiché
+                    if (els && els.wrapper) {
+                        // rien
+                    }
                     
                     // Scroll vers le résultat
-                    document.getElementById('aiQuickResult').scrollIntoView({ 
-                        behavior: 'smooth', 
-                        block: 'nearest' 
-                    });
+                    if (els && els.wrapper) {
+                        els.wrapper.scrollIntoView({ 
+                            behavior: 'smooth', 
+                            block: 'nearest' 
+                        });
+                    }
                 } else {
                     alert('Erreur : ' + data.error);
                 }
             } catch (error) {
                 console.error('Erreur IA:', error);
-                alert('Erreur de connexion avec l\'assistant IA');
+                alert((error && error.message) ? error.message : 'Erreur de connexion avec l\'assistant IA');
             } finally {
                 // Réactiver le bouton
-                button.disabled = false;
-                button.innerHTML = originalText;
+                if (button) {
+                    button.disabled = false;
+                    button.innerHTML = originalText;
+                }
             }
         }
         
@@ -1042,7 +1409,8 @@ class PublicationController {
                 const contenuField = document.getElementById('contenu');
                 if (contenuField) {
                     contenuField.value = window.currentAIResult;
-                    document.getElementById('aiQuickResult').style.display = 'none';
+                    const wrapper = document.getElementById('aiQuickResult');
+                    if (wrapper) wrapper.style.display = 'none';
                     
                     // Mettre à jour le compteur de caractères
                     if (typeof updateCharCount === 'function') {
@@ -1061,7 +1429,7 @@ class PublicationController {
                         }
                     }
                     
-                    alert('✅ Texte appliqué avec succès !');
+                    alert('✅ Suggestion ajoutée dans votre publication !');
                     contenuField.focus();
                 }
             }
@@ -1080,6 +1448,31 @@ class PublicationController {
         
         // Initialisation
         document.addEventListener('DOMContentLoaded', function() {
+            // Rendre les fonctions accessibles même si onclick inline est utilisé
+            window.quickAIGenerate = quickAIGenerate;
+            window.quickAIImprove = quickAIImprove;
+            window.applyAIResult = applyAIResult;
+
+            // Binder robuste: garantit que les clics fonctionnent
+            const genBtn = document.getElementById('quickGenBtn');
+            if (genBtn) {
+                genBtn.onclick = null;
+                genBtn.removeAttribute('onclick');
+                genBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    quickAIGenerate();
+                });
+            }
+            const addBtn = document.getElementById('aiQuickAddBtn');
+            if (addBtn) {
+                addBtn.onclick = null;
+                addBtn.removeAttribute('onclick');
+                addBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    applyAIResult();
+                });
+            }
+
             // Focus sur le champ thème quand on clique sur le bouton
             const themeInput = document.getElementById('quickTheme');
             if (themeInput) {
@@ -1095,7 +1488,7 @@ class PublicationController {
             const urlParams = new URLSearchParams(window.location.search);
             const aiContent = urlParams.get('ai_content');
             if (aiContent && document.getElementById('contenu')) {
-                document.getElementById('contenu').value = decodeURIComponent(aiContent);
+                document.getElementById('contenu').value = aiContent;
                 
                 // Mettre à jour le compteur
                 const contenuField = document.getElementById('contenu');

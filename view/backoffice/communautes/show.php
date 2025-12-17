@@ -82,13 +82,13 @@ $communaute = $communauteModel ?? $this->communauteModel;
         </div>
 
         <div class="d-flex justify-content-end gap-2 mt-4">
-            <a href="/projet/admin/communautes/<?= $communaute->id ?>/edit" class="btn btn-warning btn-lg"><i class="fas fa-edit me-2"></i>Modifier</a>
-            <form action="/projet/admin/communautes/<?= $communaute->id ?>/delete" method="POST" class="d-inline">
+            <a href="<?php echo BASE_URL; ?>/admin/communautes/<?= $communaute->id ?>/edit" class="btn btn-warning btn-lg"><i class="fas fa-edit me-2"></i>Modifier</a>
+            <form action="<?php echo BASE_URL; ?>/admin/communautes/<?= $communaute->id ?>/delete" method="POST" class="d-inline">
                 <button type="submit" class="btn btn-danger btn-lg" onclick="return confirm('Êtes-vous sûr de vouloir supprimer cette communauté ?')">
                     <i class="fas fa-trash me-2"></i>Supprimer
                 </button>
             </form>
-            <a href="/projet/admin/communautes" class="btn btn-secondary btn-lg"><i class="fas fa-arrow-left me-2"></i>Retour à la liste</a>
+            <a href="<?php echo BASE_URL; ?>/admin/communautes" class="btn btn-secondary btn-lg"><i class="fas fa-arrow-left me-2"></i>Retour à la liste</a>
         </div>
     </div>
 </div>

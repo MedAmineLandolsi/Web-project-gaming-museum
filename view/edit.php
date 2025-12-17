@@ -7,7 +7,7 @@
                     <p class="text-muted">Modifiez votre publication dans la communauté</p>
                 </div>
 
-                <form action="/projet/publications/<?php echo $this->publicationModel->id; ?>/edit" method="POST" enctype="multipart/form-data" id="editPublicationForm">
+                <form action="<?php echo BASE_URL; ?>/publications/<?php echo $this->publicationModel->id; ?>/edit" method="POST" enctype="multipart/form-data" id="editPublicationForm">
                     <div class="mb-3">
                         <label for="contenu" class="form-label">Contenu *</label>
                         <textarea class="form-control" 
@@ -43,7 +43,7 @@
 
                     <div class="d-flex gap-2 justify-content-between">
                         <div>
-                            <a href="/projet/communautes/<?php echo $this->publicationModel->communaute_id; ?>" class="btn btn-secondary">
+                            <a href="<?php echo BASE_URL; ?>/communautes/<?php echo $this->publicationModel->communaute_id; ?>" class="btn btn-secondary">
                                 <i class="fas fa-arrow-left me-2"></i>Annuler
                             </a>
                         </div>
@@ -76,7 +76,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                <form action="/projet/publications/<?php echo $this->publicationModel->id; ?>/delete" method="POST" class="d-inline">
+                <form action="<?php echo BASE_URL; ?>/publications/<?php echo $this->publicationModel->id; ?>/delete" method="POST" class="d-inline">
                     <button type="submit" class="btn btn-danger">Supprimer définitivement</button>
                 </form>
             </div>

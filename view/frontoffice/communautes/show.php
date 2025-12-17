@@ -6,6 +6,12 @@ if (!isset($publications)) {
 }
 ?>
 <div class="communaute-detail-container">
+    <?php
+        $__base = defined('BASE_URL') ? (string) BASE_URL : '';
+        $__root = rtrim(str_replace('\\', '/', dirname($__base)), '/');
+        if ($__root === '.' || $__root === '/') { $__root = ''; }
+        $__uploadsBase = ($__root === '') ? '/gaming_museum/uploads' : ($__root . '/gaming_museum/uploads');
+    ?>
     <!-- Contenu principal -->
     <div class="main-content-section">
         <!-- Header de la communauté -->
@@ -17,7 +23,13 @@ if (!isset($publications)) {
                      class="communaute-avatar-large-img">
                 <?php else: ?>
                 <div class="communaute-avatar-large">
-                    <?php echo strtoupper(substr($this->communauteModel->nom, 0, 2)); ?>
+                    <?php if (!empty($this->communauteModel->avatar)): ?>
+                        <img src="<?php echo htmlspecialchars($this->communauteModel->avatar); ?>" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">
+                    <?php elseif (!empty($this->communauteModel->createur_profile_picture_url)): ?>
+                        <img src="<?php echo htmlspecialchars($__uploadsBase . '/' . $this->communauteModel->createur_profile_picture_url); ?>" alt="Avatar créateur" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">
+                    <?php else: ?>
+                        <?php echo strtoupper(substr($this->communauteModel->nom, 0, 2)); ?>
+                    <?php endif; ?>
                 </div>
                 <?php endif; ?>
                 <div class="communaute-title-section">
@@ -41,9 +53,7 @@ if (!isset($publications)) {
                         <p class="text-muted mb-2">
                             <i class="fas fa-user me-1"></i>
                             <strong>Créée par:</strong> 
-                            <a href="/projet/membres/<?php echo $this->communauteModel->createur_id; ?>" class="text-decoration-none text-primary">
-                                <?php echo htmlspecialchars($this->communauteModel->createur_nom); ?>
-                            </a>
+                            <?php echo htmlspecialchars($this->communauteModel->createur_nom); ?>
                         </p>
                         <p class="text-muted mb-0">
                             <i class="fas fa-calendar me-1"></i>
@@ -76,13 +86,7 @@ if (!isset($publications)) {
                         ?>
                     </small>
                 </div>
-                <div class="stat-card">
-                    <span class="stat-number"><?php echo rand(50, 200); ?></span>
-                    <span class="stat-label">Membres</span>
-                    <small class="text-muted d-block mt-1">
-                        <?php echo rand(10, 30); ?> actifs cette semaine
-                    </small>
-                </div>
+
                 <div class="stat-card">
                     <span class="stat-number"><?php echo rand(5, 25); ?></span>
                     <span class="stat-label">En ligne</span>
@@ -147,7 +151,7 @@ if (!isset($publications)) {
                         <option value="likes_desc" <?php echo ($_GET['order_by'] ?? '') == 'likes' && ($_GET['order_dir'] ?? '') == 'DESC' ? 'selected' : ''; ?>>Plus populaires</option>
                         <option value="commentaires_desc" <?php echo ($_GET['order_by'] ?? '') == 'commentaires' && ($_GET['order_dir'] ?? '') == 'DESC' ? 'selected' : ''; ?>>Plus commentées</option>
                     </select>
-                    <a href="/projet/publications/create?communaute_id=<?php echo $this->communauteModel->id; ?>" class="btn btn-primary">
+                    <a href="<?php echo BASE_URL; ?>/publications/create?communaute_id=<?php echo $this->communauteModel->id; ?>" class="btn btn-primary">
                         <i class="fas fa-plus me-2"></i>Nouvelle publication
                     </a>
                 </div>
@@ -157,15 +161,24 @@ if (!isset($publications)) {
             <?php if (!empty($publications)): ?>
                 <div class="publication-grid mb-5">
                     <?php foreach ($publications as $publication): ?>
+                    <?php
+                        $authorName = $publication['auteur_display_name']
+                            ?? trim(($publication['prenom'] ?? '') . ' ' . ($publication['nom'] ?? ''));
+                        $authorInitials = strtoupper(substr(preg_replace('/\s+/', '', (string) $authorName), 0, 2));
+                    ?>
                     <div class="publication-card-enhanced">
                         <!-- En-tête publication -->
                         <div class="publication-header">
-                            <div class="avatar">
-                                <?php echo strtoupper(substr($publication['prenom'], 0, 1) . substr($publication['nom'], 0, 1)); ?>
-                            </div>
+                                <?php if (!empty($publication['profile_picture_url'])): ?>
+                                    <img src="<?php echo htmlspecialchars($__uploadsBase . '/' . $publication['profile_picture_url']); ?>" alt="Avatar" class="rounded-circle" style="width:44px;height:44px;object-fit:cover;border:2px solid rgba(0,255,65,0.6);">
+                                <?php else: ?>
+                                    <div class="avatar">
+                                        <?php echo htmlspecialchars($authorInitials ?: 'U'); ?>
+                                    </div>
+                                <?php endif; ?>
                             <div class="publication-author">
                                 <div class="publication-author-name">
-                                    <?php echo htmlspecialchars($publication['prenom'] . ' ' . $publication['nom']); ?>
+                                    <?php echo htmlspecialchars($authorName); ?>
                                 </div>
                                 <div class="publication-date">
                                     <?php echo date('d/m/Y à H:i', strtotime($publication['date_publication'])); ?>
@@ -231,7 +244,7 @@ if (!isset($publications)) {
                             <h6 class="fs-5 fw-bold mb-2"><i class="fas fa-user-cog me-2"></i>Gérer votre publication</h6>
                             <div class="d-flex gap-2 flex-wrap">
                                 <!-- BOUTON MODIFIER AVEC LA BONNE ROUTE -->
-                                <a href="/projet/publications/edit/<?php echo $publication['id']; ?>" 
+                                <a href="<?php echo BASE_URL; ?>/publications/edit/<?php echo $publication['id']; ?>" 
                                    class="btn btn-warning btn-sm">
                                     <i class="fas fa-edit me-1"></i>Modifier
                                 </a>
@@ -259,7 +272,7 @@ if (!isset($publications)) {
                                     </div>
                                     <div class="modal-footer">
                                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                                        <form action="/projet/publications/<?php echo $publication['id']; ?>/delete" method="POST" class="d-inline">
+                                        <form action="<?php echo BASE_URL; ?>/publications/<?php echo $publication['id']; ?>/delete" method="POST" class="d-inline">
                                             <input type="hidden" name="communaute_id" value="<?php echo $publication['communaute_id']; ?>">
                                             <button type="submit" class="btn btn-danger">Supprimer définitivement</button>
                                         </form>
@@ -276,7 +289,7 @@ if (!isset($publications)) {
                     <i class="fas fa-newspaper fa-3x"></i>
                     <h4>Aucune publication</h4>
                     <p class="mb-4">Soyez le premier à partager dans cette communauté !</p>
-                    <a href="/projet/publications/create?communaute_id=<?php echo $this->communauteModel->id; ?>" class="btn btn-primary">
+                    <a href="<?php echo BASE_URL; ?>/publications/create?communaute_id=<?php echo $this->communauteModel->id; ?>" class="btn btn-primary">
                         <i class="fas fa-plus me-2"></i>Créer la première publication
                     </a>
                 </div>
@@ -286,88 +299,31 @@ if (!isset($publications)) {
 
     <!-- Sidebar -->
     <div class="communaute-sidebar">
-        <!-- Bouton rejoindre -->
-        <div class="sidebar-section">
-            <h5><i class="fas fa-user-plus me-2"></i>Rejoindre la communauté</h5>
-            <p class="text-muted mb-3">Participez aux discussions et partagez vos idées.</p>
-
-            <?php if (!isset($_SESSION['user_id'])): ?>
-                <button class="btn btn-primary w-100 join-community"
-                        data-communaute-id="<?php echo $this->communauteModel->id; ?>"
-                        data-communaute-name="<?php echo htmlspecialchars($this->communauteModel->nom); ?>">
-                    <i class="fas fa-user-plus me-2"></i>Rejoindre
-                </button>
-
-            <?php elseif (isset($isOwner) && $isOwner): ?>
-                <div class="alert alert-warning text-center mb-0">
-                    <i class="fas fa-crown me-2"></i>Vous êtes le créateur de cette communauté
-                </div>
-
-            <?php elseif (isset($isMember) && $isMember): ?>
-                <button type="button" class="btn btn-danger w-100 leave-community"
-                        data-communaute-id="<?php echo $this->communauteModel->id; ?>"
-                        data-communaute-name="<?php echo htmlspecialchars($this->communauteModel->nom); ?>">
-                    <i class="fas fa-user-minus me-2"></i>Quitter
-                </button>
-
-            <?php else: ?>
-                <button class="btn btn-primary w-100 join-community"
-                        data-communaute-id="<?php echo $this->communauteModel->id; ?>"
-                        data-communaute-name="<?php echo htmlspecialchars($this->communauteModel->nom); ?>">
-                    <i class="fas fa-user-plus me-2"></i>Rejoindre
-                </button>
-            <?php endif; ?>
-        </div>
-
-        <!-- Membres actifs -->
-        <div class="sidebar-section">
-            <h5><i class="fas fa-users me-2"></i>Membres actifs</h5>
-            <div class="membres-list">
-                <div class="membre-item">
-                    <div class="membre-avatar">
-                        <?php echo strtoupper(substr($this->communauteModel->createur_nom, 0, 2)); ?>
-                    </div>
-                    <div class="membre-info">
-                        <div class="membre-name"><?php echo htmlspecialchars($this->communauteModel->createur_nom); ?></div>
-                        <div class="membre-role text-success">
-                            <i class="fas fa-crown me-1"></i>Créateur
+                    <?php if (isset($_SESSION['user_id']) && !$isOwner): ?>
+                        <div class="communaute-actions" style="margin-top: 15px;">
+                            <?php if (!empty($hasJoined)): ?>
+                                <form method="POST" action="<?php echo BASE_URL; ?>/communautes/<?php echo $this->communauteModel->id; ?>/leave">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm w-100">Quitter</button>
+                                </form>
+                            <?php else: ?>
+                                <form method="POST" action="<?php echo BASE_URL; ?>/communautes/<?php echo $this->communauteModel->id; ?>/join">
+                                    <button type="submit" class="btn btn-success btn-sm w-100">Rejoindre</button>
+                                </form>
+                            <?php endif; ?>
                         </div>
-                    </div>
-                </div>
-                <?php 
-                $nomsMembres = ['Alice Martin', 'Bob Dupont', 'Claire Bernard'];
-                for ($i = 0; $i < 3; $i++): 
-                ?>
-                <div class="membre-item">
-                    <div class="membre-avatar">
-                        <?php echo strtoupper(substr($nomsMembres[$i], 0, 1) . substr(explode(' ', $nomsMembres[$i])[1], 0, 1)); ?>
-                    </div>
-                    <div class="membre-info">
-                        <div class="membre-name"><?php echo $nomsMembres[$i]; ?></div>
-                        <div class="membre-role text-primary">
-                            <i class="fas fa-star me-1"></i>Membre actif
-                        </div>
-                    </div>
-                </div>
-                <?php endfor; ?>
-            </div>
-            <div class="text-center mt-3">
-                <small class="text-muted">
-                    <i class="fas fa-users me-1"></i>
-                    Et <?php echo rand(10, 50); ?> autres membres...
-                </small>
-            </div>
-        </div>
+                    <?php endif; ?>
+
+
 
         <!-- Actions du créateur -->
         <?php if (isset($_SESSION['user_id']) && $_SESSION['user_id'] == $this->communauteModel->createur_id): ?>
         <div class="sidebar-section">
             <h5><i class="fas fa-cog me-2"></i>Gestion</h5>
             <div class="admin-actions d-flex flex-column gap-3">
-                <a href="/projet/admin/communautes/<?php echo $this->communauteModel->id; ?>/edit" class="btn btn-warning btn-sm w-100 mb-2">
+                <a href="<?php echo BASE_URL; ?>/admin/communautes/<?php echo $this->communauteModel->id; ?>/edit" class="btn btn-warning btn-sm w-100 mb-2">
                     <i class="fas fa-edit me-1"></i>Modifier la communauté
                 </a>
-                <form action="/projet/admin/communautes/<?php echo $this->communauteModel->id; ?>/delete" method="POST" class="w-100">
+                <form action="<?php echo BASE_URL; ?>/admin/communautes/<?php echo $this->communauteModel->id; ?>/delete" method="POST" class="w-100">
                     <button type="submit" class="btn btn-danger btn-sm w-100" 
                             onclick="return confirm('Êtes-vous sûr de vouloir supprimer cette communauté ? Toutes les publications seront perdues.')">
                         <i class="fas fa-trash me-1"></i>Supprimer la communauté
@@ -1145,68 +1101,6 @@ if (!isset($publications)) {
     border: none;
 }
 
-/* Membres liste */
-.membres-list {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-.membre-item {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 1rem;
-    border-radius: 12px;
-    transition: all 0.3s ease;
-    border: 1px solid transparent;
-    background: rgba(255, 255, 255, 0.02);
-}
-
-.membre-item:hover {
-    background: linear-gradient(135deg, rgba(0, 255, 136, 0.1), rgba(189, 0, 255, 0.1));
-    border-color: rgba(0, 255, 136, 0.3);
-    transform: translateX(5px);
-    box-shadow: 0 3px 10px rgba(0, 255, 136, 0.2);
-}
-
-.membre-avatar {
-    width: 45px;
-    height: 45px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--primary-green), var(--secondary-purple));
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-    color: var(--dark-bg);
-    font-size: 0.9rem;
-    box-shadow: 0 3px 10px rgba(0, 255, 136, 0.3);
-    transition: all 0.3s ease;
-    border: 2px solid rgba(0, 255, 136, 0.3);
-}
-
-.membre-item:hover .membre-avatar {
-    transform: scale(1.15) rotate(5deg);
-    box-shadow: 0 5px 15px rgba(0, 255, 136, 0.5);
-}
-
-.membre-info {
-    flex: 1;
-}
-
-.membre-name {
-    color: var(--text-white);
-    font-weight: 500;
-    font-size: 0.9rem;
-}
-
-.membre-role {
-    font-size: 0.75rem;
-    display: flex;
-    align-items: center;
-}
-
 /* Responsive */
 @media (max-width: 1024px) {
     .communaute-detail-container {
@@ -1414,200 +1308,7 @@ if (!isset($publications)) {
 </style>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const joinButtons = document.querySelectorAll('.join-community');
-
-    joinButtons.forEach(button => {
-        button.addEventListener('click', async function() {
-            if (this.disabled) {
-                return;
-            }
-
-            const communauteId = this.getAttribute('data-communaute-id');
-            const communauteName = this.getAttribute('data-communaute-name') || 'cette communauté';
-            const originalContent = this.innerHTML;
-
-            if (!communauteId) {
-                showAlert('❌ Impossible de déterminer la communauté.', 'danger');
-                return;
-            }
-
-            // Désactiver le bouton et afficher le spinner
-            this.disabled = true;
-            this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>';
-
-            try {
-                const response = await fetch('<?php echo BASE_URL; ?>/api/join-community', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ communaute_id: communauteId })
-                });
-
-                const text = await response.text();
-                let data = null;
-                try { data = JSON.parse(text); } catch (e) { console.error('Erreur parsing JSON:', text); }
-
-                if (!response.ok) {
-                    const message = (data && data.message) ? data.message : `Erreur serveur (${response.status})`;
-                    this.disabled = false;
-                    this.innerHTML = originalContent;
-                    showAlert('❌ ' + message, 'danger');
-                    return;
-                }
-
-                if (data && data.success) {
-                    // Mettre à jour tous les boutons pour cette communauté
-                    const allJoinButtons = document.querySelectorAll(`.join-community[data-communaute-id="${communauteId}"]`);
-                    allJoinButtons.forEach(btn => {
-                        btn.innerHTML = '<i class="fas fa-check me-1"></i>Rejoint';
-                        btn.classList.remove('btn-primary', 'btn-success');
-                        btn.classList.add('btn-secondary');
-                        btn.disabled = true;
-                    });
-                    
-                    showAlert('✅ ' + (data.message || 'Vous avez rejoint la communauté "' + communauteName + '" avec succès !'), 'success');
-                } else {
-                    this.disabled = false;
-                    this.innerHTML = originalContent;
-                    showAlert('❌ ' + ((data && data.message) ? data.message : 'Impossible de rejoindre cette communauté'), 'danger');
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                this.disabled = false;
-                this.innerHTML = originalContent;
-                showAlert('❌ Erreur de connexion. Vérifiez votre connexion internet.', 'danger');
-            }
-        });
-    });
-
-    // Gestion du bouton "Quitter"
-    const quitButtons = document.querySelectorAll('.leave-community');
-    quitButtons.forEach(button => {
-        button.addEventListener('click', async function() {
-            if (this.disabled) {
-                return;
-            }
-
-            const communauteId = this.getAttribute('data-communaute-id');
-            const communauteName = this.getAttribute('data-communaute-name') || 'cette communauté';
-            const originalContent = this.innerHTML;
-
-            if (!communauteId) {
-                showAlert('❌ Impossible de déterminer la communauté.', 'danger');
-                return;
-            }
-
-            // Désactiver le bouton et afficher le spinner
-            this.disabled = true;
-            this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>';
-
-            try {
-                const response = await fetch('<?php echo BASE_URL; ?>/api/leave-community', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ communaute_id: communauteId })
-                });
-
-                const text = await response.text();
-                let data = null;
-                try { data = JSON.parse(text); } catch (e) { console.error('Erreur parsing JSON:', text); }
-
-                if (!response.ok) {
-                    const message = (data && data.message) ? data.message : `Erreur serveur (${response.status})`;
-                    this.disabled = false;
-                    this.innerHTML = originalContent;
-                    showAlert('❌ ' + message, 'danger');
-                    return;
-                }
-
-                if (data && data.success) {
-                    // Transformer le bouton "Quitter" en "Rejoindre"
-                    this.classList.remove('btn-danger', 'leave-community');
-                    this.classList.add('btn-primary', 'join-community');
-                    this.setAttribute('data-communaute-id', communauteId);
-                    this.setAttribute('data-communaute-name', communauteName);
-                    this.innerHTML = '<i class="fas fa-user-plus me-2"></i>Rejoindre';
-                    this.disabled = false;
-                    
-                    // Réattacher l'événement "Rejoindre" au nouveau bouton
-                    this.removeEventListener('click', arguments.callee);
-                    this.addEventListener('click', async function() {
-                        if (this.disabled) return;
-                        const communauteId = this.getAttribute('data-communaute-id');
-                        const communauteName = this.getAttribute('data-communaute-name') || 'cette communauté';
-                        const originalContent = this.innerHTML;
-                        if (!communauteId) {
-                            showAlert('❌ Impossible de déterminer la communauté.', 'danger');
-                            return;
-                        }
-                        this.disabled = true;
-                        this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>';
-                        try {
-                            const response = await fetch('<?php echo BASE_URL; ?>/api/join-community', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ communaute_id: communauteId })
-                            });
-
-                            const text = await response.text();
-                            let data = null;
-                            try { data = JSON.parse(text); } catch (e) { console.error('Erreur parsing JSON:', text); }
-
-                            if (!response.ok) {
-                                const message = (data && data.message) ? data.message : `Erreur serveur (${response.status})`;
-                                this.disabled = false;
-                                this.innerHTML = originalContent;
-                                showAlert('❌ ' + message, 'danger');
-                                return;
-                            }
-
-                            if (data && data.success) {
-                                this.classList.remove('btn-primary', 'join-community');
-                                this.classList.add('btn-secondary');
-                                this.innerHTML = '<i class="fas fa-check me-1"></i>Rejoint';
-                                this.disabled = true;
-                                showAlert('✅ ' + (data.message || 'Vous avez rejoint la communauté "' + communauteName + '" avec succès !'), 'success');
-                            } else {
-                                this.disabled = false;
-                                this.innerHTML = originalContent;
-                                showAlert('❌ ' + ((data && data.message) ? data.message : 'Impossible de rejoindre'), 'danger');
-                            }
-                        } catch (error) {
-                            this.disabled = false;
-                            this.innerHTML = originalContent;
-                            showAlert('❌ Erreur de connexion.', 'danger');
-                        }
-                    });
-                    
-                    showAlert('✅ ' + (data.message || 'Vous avez quitté la communauté "' + communauteName + '" avec succès !'), 'success');
-                } else {
-                    this.disabled = false;
-                    this.innerHTML = originalContent;
-                    showAlert('❌ ' + (data.message || 'Impossible de quitter cette communauté'), 'danger');
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                this.disabled = false;
-                this.innerHTML = originalContent;
-                showAlert('❌ Erreur de connexion. Vérifiez votre connexion internet.', 'danger');
-            }
-        });
-    });
-
-    function showAlert(message, type) {
-        const alertDiv = document.createElement('div');
-        alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
-        alertDiv.innerHTML = `
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
-        document.querySelector('.main-content-section').prepend(alertDiv);
-        
-        setTimeout(() => {
-            alertDiv.remove();
-        }, 5000);
-    }
-});
+// Fonctionnalité "rejoindre/quitter" supprimée.
 
 function updatePublicationSort() {
     const sortValue = document.getElementById('publicationSort').value;

@@ -1,18 +1,13 @@
-DirectoryIndex view/frontoffice/index.php
+DirectoryIndex index.php
 RewriteEngine On
-RewriteBase /projet/
 
-# Servir directement le frontoffice index
-DirectoryIndex view/frontoffice/index.php
+# Si le fichier/dossier existe, on le sert tel quel
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
 
-# Redirection pour les URLs avec index.php -> pointer vers frontoffice
-RewriteCond %{THE_REQUEST} /index\.php [NC]
-RewriteRule ^(.*?)index\.php(?:/(.*))?$ /projet/view/frontoffice/$1$2 [L,R=301,NC]
-
-# Gérer les URLs propres: rediriger vers le front controller situé dans view/frontoffice
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^(.*)$ view/frontoffice/index.php [QSA,L]
+# Sinon, router vers le front controller à la racine
+RewriteRule ^ index.php [QSA,L]
 
 # Sécurité - empêcher l'accès direct aux fichiers sensibles
 <Files ~ "\.(env|json|config.js|md|gitignore|gitattributes|lock)$">

@@ -3,13 +3,37 @@ class CommunauteController {
     private $communauteModel;
     private $publicationModel;
     private $validation;
-    private $membreModel;
 
     public function __construct($db) {
         $this->communauteModel = new Communaute($db);
         $this->publicationModel = new Publication($db);
-        $this->membreModel = new Membre($db);
         $this->validation = new Validation();
+    }
+
+    private function getLoginUrl(): string {
+        $base = defined('BASE_URL') ? (string) BASE_URL : '';
+        $root = rtrim(str_replace('\\', '/', dirname($base)), '/');
+        if ($root === '.' || $root === '/') {
+            $root = '';
+        }
+        return $root . '/gaming_museum/view/frontoffice/login.php';
+    }
+
+    private function requireLogin(): void {
+        if (!isset($_SESSION['user_id'])) {
+            $_SESSION['error_message'] = "Veuillez vous connecter pour continuer.";
+            header('Location: ' . $this->getLoginUrl());
+            exit;
+        }
+    }
+
+    private function redirectBack(string $fallbackPath = '/communautes'): void {
+        $target = $_SERVER['HTTP_REFERER'] ?? '';
+        if (!$target) {
+            $target = (defined('BASE_URL') ? BASE_URL : '') . $fallbackPath;
+        }
+        header('Location: ' . $target);
+        exit;
     }
 
     // === FRONT OFFICE ===
@@ -18,14 +42,24 @@ class CommunauteController {
     public function indexFront() {
         $order_by = $_GET['order_by'] ?? 'date_creation';
         $order_dir = $_GET['order_dir'] ?? 'DESC';
+
+        $selectedCategorie = trim((string) ($_GET['categorie'] ?? ''));
+        $categories = $this->communauteModel->getCategories();
         
-        $result = $this->communauteModel->readOrdered($order_by, $order_dir);
+        $result = $this->communauteModel->readOrderedFiltered($selectedCategorie, $order_by, $order_dir);
         $communautes = $result->fetchAll(PDO::FETCH_ASSOC);
+
+        $joinedIds = [];
+        if (isset($_SESSION['user_id'])) {
+            $joinedIds = $this->communauteModel->getJoinedCommunauteIds($_SESSION['user_id']);
+        }
         
         // Ajouter des données simulées pour l'affichage
         foreach($communautes as &$communaute) {
-            $communaute['membres_count'] = rand(50, 200);
             $communaute['publications_count'] = rand(10, 50);
+            $communaute['has_joined'] = isset($_SESSION['user_id'])
+                ? in_array((int)($communaute['id'] ?? 0), $joinedIds, true)
+                : false;
         }
         
         $title = "Nos Communautés";
@@ -46,15 +80,15 @@ class CommunauteController {
             if (!is_array($publications)) {
                 $publications = [];
             }
-            // CALCULER isMember/isOwner dispo globalement :
-            global $isMember, $isOwner;
-            $isOwner = false;
-            $isMember = false;
-            if (isset($_SESSION['user_id'])) {
-                $membre_id = $this->membreModel->findByUserId($_SESSION['user_id']);
-                $isOwner = ($membre_id && $membre_id == $this->communauteModel->createur_id);
-                $isMember = ($membre_id && $this->communauteModel->hasJoined($membre_id, $this->communauteModel->id));
+            // CALCULER isOwner dispo globalement (fonctionnalité supprimée)
+            global $isOwner;
+            $isOwner = isset($_SESSION['user_id']) && $_SESSION['user_id'] == $this->communauteModel->createur_id;
+
+            $hasJoined = false;
+            if (isset($_SESSION['user_id']) && !$isOwner) {
+                $hasJoined = $this->communauteModel->hasJoined($_SESSION['user_id'], $id);
             }
+
             $title = $this->communauteModel->nom;
                   ob_start();
                   include dirname(__DIR__) . '/view/frontoffice/communautes/show.php';
@@ -65,8 +99,47 @@ class CommunauteController {
         }
     }
 
+    public function join(int $id): void {
+        $this->requireLogin();
+
+        $this->communauteModel->id = $id;
+        if (!$this->communauteModel->read_single()) {
+            $_SESSION['error_message'] = "Communauté introuvable.";
+            $this->redirectBack('/communautes');
+        }
+
+        if ((int)$_SESSION['user_id'] === (int)$this->communauteModel->createur_id) {
+            $_SESSION['error_message'] = "Vous êtes le créateur de cette communauté.";
+            $this->redirectBack('/communautes/' . $id);
+        }
+
+        $this->communauteModel->join($_SESSION['user_id'], $id);
+        $_SESSION['success_message'] = "Vous avez rejoint la communauté.";
+        $this->redirectBack('/communautes/' . $id);
+    }
+
+    public function leave(int $id): void {
+        $this->requireLogin();
+
+        $this->communauteModel->id = $id;
+        if (!$this->communauteModel->read_single()) {
+            $_SESSION['error_message'] = "Communauté introuvable.";
+            $this->redirectBack('/communautes');
+        }
+
+        if ((int)$_SESSION['user_id'] === (int)$this->communauteModel->createur_id) {
+            $_SESSION['error_message'] = "Vous êtes le créateur de cette communauté.";
+            $this->redirectBack('/communautes/' . $id);
+        }
+
+        $this->communauteModel->leave($_SESSION['user_id'], $id);
+        $_SESSION['success_message'] = "Vous avez quitté la communauté.";
+        $this->redirectBack('/communautes/' . $id);
+    }
+
     // Créer une communauté (formulaire - Front)
     public function createFront() {
+        $this->requireLogin();
         $title = "Créer une communauté";
         ob_start();
         include dirname(__DIR__) . '/view/frontoffice/communautes/create.php';
@@ -76,28 +149,27 @@ class CommunauteController {
 
     // Stocker une communauté (Front)
     public function storeFront($data) {
+        $this->requireLogin();
         $errors = $this->validateCommunauteData($data);
         
         if (!empty($errors)) {
             $_SESSION['form_errors'] = $errors;
             $_SESSION['old_input'] = $data;
-            header('Location: /projet/communautes/create');
+            header('Location: ' . BASE_URL . '/communautes/create');
             exit;
         }
 
         $this->communauteModel->nom = $data['nom'];
         $this->communauteModel->categorie = $data['categorie'];
         $this->communauteModel->description = $data['description'];
-        $user_id = $_SESSION['user_id'] ?? null;
-        $membre_id = $user_id ? $this->membreModel->findByUserId($user_id) : null;
-        $this->communauteModel->createur_id = $membre_id ?? 1;
+        $this->communauteModel->createur_id = $_SESSION['user_id'] ?? 1;
         $this->communauteModel->avatar = $data['avatar'] ?? '';
         $this->communauteModel->visibilite = $data['visibilite'] ?? 'publique';
         $this->communauteModel->regles = $data['regles'] ?? '';
 
         if($this->communauteModel->create()) {
             $_SESSION['success_message'] = "Communauté créée avec succès !";
-            header('Location: /projet/communautes');
+            header('Location: ' . BASE_URL . '/communautes');
         } else {
             $this->showError("Erreur lors de la création de la communauté");
         }
@@ -107,15 +179,25 @@ class CommunauteController {
 
     // Afficher toutes les communautés (Back)
     public function indexBack() {
-        $result = $this->communauteModel->read();
+        $selectedCategorie = trim((string) ($_GET['categorie'] ?? ''));
+        $categories = $this->communauteModel->getCategories();
+
+        $result = $this->communauteModel->readFiltered($selectedCategorie);
         $communautes = $result->fetchAll(PDO::FETCH_ASSOC);
         
-        // Enrichir chaque communauté avec isMember et isOwner
+        // Enrichir chaque communauté avec isOwner (fonctionnalité supprimée)
         $user_id = $_SESSION['user_id'] ?? null;
-        $membre_id = $user_id ? $this->membreModel->findByUserId($user_id) : null;
+
+        $joinedIds = [];
+        if ($user_id) {
+            $joinedIds = $this->communauteModel->getJoinedCommunauteIds($user_id);
+        }
         foreach ($communautes as &$communaute) {
-            $communaute['isOwner'] = ($membre_id && $membre_id == $communaute['createur_id']);
-            $communaute['isMember'] = ($membre_id && $this->communauteModel->hasJoined($membre_id, $communaute['id']));
+            $communaute['isOwner'] = ($user_id && (int)$user_id === (int)($communaute['createur_id'] ?? 0));
+            $cid = (int) ($communaute['id'] ?? 0);
+            $communaute['has_joined'] = ($user_id && !$communaute['isOwner'] && $cid > 0)
+                ? in_array($cid, $joinedIds, true)
+                : false;
         }
         unset($communaute); // Libérer la référence
         
@@ -131,14 +213,8 @@ class CommunauteController {
         $this->communauteModel->id = $id;
         
         if($this->communauteModel->read_single()) {
-            // Calculer isOwner et isMember
-            $isOwner = false;
-            $isMember = false;
-            if (isset($_SESSION['user_id'])) {
-                $membre_id = $this->membreModel->findByUserId($_SESSION['user_id']);
-                $isOwner = ($membre_id && $membre_id == $this->communauteModel->createur_id);
-                $isMember = ($membre_id && $this->communauteModel->hasJoined($membre_id, $id));
-            }
+            // Calculer isOwner (fonctionnalité supprimée)
+            $isOwner = isset($_SESSION['user_id']) && (int)$_SESSION['user_id'] === (int)$this->communauteModel->createur_id;
             
             // Récupérer les publications de la communauté (déjà décodées)
             $publications = $this->publicationModel->read_by_communaute($id);
@@ -155,6 +231,7 @@ class CommunauteController {
 
     // Créer une communauté (formulaire - Back)
     public function create() {
+        $this->requireLogin();
         $title = "Créer une nouvelle communauté";
         ob_start();
         include dirname(__DIR__) . '/view/backoffice/communautes/create.php';
@@ -164,28 +241,27 @@ class CommunauteController {
 
     // Stocker une nouvelle communauté (Back)
     public function store($data) {
+        $this->requireLogin();
         $errors = $this->validateCommunauteData($data);
         
         if (!empty($errors)) {
             $_SESSION['form_errors'] = $errors;
             $_SESSION['old_input'] = $data;
-            header('Location: /projet/admin/communautes/create');
+            header('Location: ' . BASE_URL . '/admin/communautes/create');
             exit;
         }
 
         $this->communauteModel->nom = $data['nom'];
         $this->communauteModel->categorie = $data['categorie'];
         $this->communauteModel->description = $data['description'];
-        $user_id = $_SESSION['user_id'] ?? null;
-        $membre_id = $user_id ? $this->membreModel->findByUserId($user_id) : null;
-        $this->communauteModel->createur_id = $membre_id ?? 1;
+        $this->communauteModel->createur_id = $_SESSION['user_id'] ?? 1;
         $this->communauteModel->avatar = $data['avatar'] ?? '';
         $this->communauteModel->visibilite = $data['visibilite'] ?? 'publique';
         $this->communauteModel->regles = $data['regles'] ?? '';
 
         if($this->communauteModel->create()) {
             $_SESSION['success_message'] = "Communauté créée avec succès";
-            header('Location: /projet/admin/communautes');
+            header('Location: ' . BASE_URL . '/admin/communautes');
         } else {
             $this->showError("Erreur lors de la création de la communauté");
         }
@@ -193,6 +269,7 @@ class CommunauteController {
 
     // Modifier une communauté (formulaire - Back)
     public function edit($id) {
+        $this->requireLogin();
         $this->communauteModel->id = $id;
         
         if($this->communauteModel->read_single()) {
@@ -208,12 +285,13 @@ class CommunauteController {
 
     // Mettre à jour une communauté (Back)
     public function update($id, $data) {
+        $this->requireLogin();
         $errors = $this->validateCommunauteData($data, $id);
         
         if (!empty($errors)) {
             $_SESSION['form_errors'] = $errors;
             $_SESSION['old_input'] = $data;
-            header('Location: /projet/admin/communautes/' . $id . '/edit');
+            header('Location: ' . BASE_URL . '/admin/communautes/' . $id . '/edit');
             exit;
         }
 
@@ -227,7 +305,7 @@ class CommunauteController {
 
         if($this->communauteModel->update()) {
             $_SESSION['success_message'] = "Communauté mise à jour avec succès";
-            header('Location: /projet/admin/communautes/' . $id);
+            header('Location: ' . BASE_URL . '/admin/communautes/' . $id);
         } else {
             $this->showError("Erreur lors de la mise à jour de la communauté");
         }
@@ -235,11 +313,12 @@ class CommunauteController {
 
     // Supprimer une communauté (Back)
     public function delete($id) {
+        $this->requireLogin();
         $this->communauteModel->id = $id;
         
         if($this->communauteModel->delete()) {
             $_SESSION['success_message'] = "Communauté supprimée avec succès";
-            header('Location: /projet/admin/communautes');
+            header('Location: ' . BASE_URL . '/admin/communautes');
         } else {
             $this->showError("Erreur lors de la suppression de la communauté");
         }

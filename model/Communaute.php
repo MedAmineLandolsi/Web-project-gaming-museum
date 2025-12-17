@@ -13,6 +13,7 @@ class Communaute {
     public $visibilite;
     public $regles;
     public $createur_nom;
+    public $createur_profile_picture_url;
 
     public function __construct($db) {
         $this->conn = $db;
@@ -35,10 +36,18 @@ class Communaute {
 
     // Lire toutes les communautés
     public function read() {
-        $query = "SELECT c.*, m.nom, m.prenom 
-                  FROM " . $this->table . " c 
-                  LEFT JOIN membre m ON c.createur_id = m.id 
-                  ORDER BY c.date_creation DESC";
+          $query = "SELECT c.*,
+                                 COALESCE(NULLIF(u.username, ''), NULLIF(u.first_name, ''), 'Utilisateur') AS prenom,
+                                 COALESCE(NULLIF(u.last_name, ''), '') AS nom,
+                                 u.profile_picture_url AS profile_picture_url,
+                                 COALESCE(
+                                     NULLIF(u.username, ''),
+                                     NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''),
+                                     CONCAT('Utilisateur #', c.createur_id)
+                                 ) AS createur_display_name
+                        FROM " . $this->table . " c
+                        LEFT JOIN users u ON u.id = c.createur_id
+                        ORDER BY c.date_creation DESC";
         
         $stmt = $this->conn->prepare($query);
         $stmt->execute();
@@ -53,22 +62,123 @@ class Communaute {
         $order_by = in_array($order_by, $allowed_columns) ? $order_by : 'date_creation';
         $order_dir = in_array($order_dir, $allowed_directions) ? $order_dir : 'DESC';
         
-        $query = "SELECT c.*, m.nom, m.prenom 
-                  FROM " . $this->table . " c 
-                  LEFT JOIN membre m ON c.createur_id = m.id 
-                  ORDER BY c." . $order_by . " " . $order_dir;
+                $query = "SELECT c.*,
+                                    COALESCE(NULLIF(u.username, ''), NULLIF(u.first_name, ''), 'Utilisateur') AS prenom,
+                                    COALESCE(NULLIF(u.last_name, ''), '') AS nom,
+                                    u.profile_picture_url AS profile_picture_url,
+                                    COALESCE(
+                                        NULLIF(u.username, ''),
+                                        NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''),
+                                        CONCAT('Utilisateur #', c.createur_id)
+                                    ) AS createur_display_name
+                            FROM " . $this->table . " c
+                            LEFT JOIN users u ON u.id = c.createur_id
+                            ORDER BY c." . $order_by . " " . $order_dir;
         
         $stmt = $this->conn->prepare($query);
         $stmt->execute();
         return $stmt;
     }
 
+    /**
+     * @return array<int, string>
+     */
+    public function getCategories(): array {
+        $query = "SELECT DISTINCT categorie FROM {$this->table} WHERE categorie IS NOT NULL AND categorie <> '' ORDER BY categorie ASC";
+        $stmt = $this->conn->prepare($query);
+        $stmt->execute();
+        $rows = $stmt->fetchAll(PDO::FETCH_COLUMN, 0);
+        $out = [];
+        foreach (($rows ?: []) as $c) {
+            $c = trim((string) $c);
+            if ($c !== '') {
+                $out[] = $c;
+            }
+        }
+        return $out;
+    }
+
+    // Lire toutes les communautés (Back) avec filtre catégorie optionnel
+    public function readFiltered(?string $categorie = null) {
+        $categorie = $categorie !== null ? trim($categorie) : '';
+
+        $where = '';
+        if ($categorie !== '') {
+            $where = 'WHERE c.categorie = :categorie';
+        }
+
+        $query = "SELECT c.*,
+                         COALESCE(NULLIF(u.username, ''), NULLIF(u.first_name, ''), 'Utilisateur') AS prenom,
+                         COALESCE(NULLIF(u.last_name, ''), '') AS nom,
+                         u.profile_picture_url AS profile_picture_url,
+                         COALESCE(
+                             NULLIF(u.username, ''),
+                             NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''),
+                             CONCAT('Utilisateur #', c.createur_id)
+                         ) AS createur_display_name
+                FROM {$this->table} c
+                LEFT JOIN users u ON u.id = c.createur_id
+                {$where}
+                ORDER BY c.date_creation DESC";
+
+        $stmt = $this->conn->prepare($query);
+        if ($categorie !== '') {
+            $stmt->bindValue(':categorie', $categorie, PDO::PARAM_STR);
+        }
+        $stmt->execute();
+        return $stmt;
+    }
+
+    // Lire toutes les communautés avec tri + filtre catégorie optionnel
+    public function readOrderedFiltered(?string $categorie = null, $order_by = 'date_creation', $order_dir = 'DESC') {
+        $allowed_columns = ['nom', 'categorie', 'date_creation', 'createur_id'];
+        $allowed_directions = ['ASC', 'DESC'];
+
+        $order_by = in_array($order_by, $allowed_columns) ? $order_by : 'date_creation';
+        $order_dir = in_array($order_dir, $allowed_directions) ? $order_dir : 'DESC';
+        $categorie = $categorie !== null ? trim($categorie) : '';
+
+        $where = '';
+        if ($categorie !== '') {
+            $where = 'WHERE c.categorie = :categorie';
+        }
+
+        $query = "SELECT c.*,
+                            COALESCE(NULLIF(u.username, ''), NULLIF(u.first_name, ''), 'Utilisateur') AS prenom,
+                            COALESCE(NULLIF(u.last_name, ''), '') AS nom,
+                            u.profile_picture_url AS profile_picture_url,
+                            COALESCE(
+                                NULLIF(u.username, ''),
+                                NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''),
+                                CONCAT('Utilisateur #', c.createur_id)
+                            ) AS createur_display_name
+                    FROM {$this->table} c
+                    LEFT JOIN users u ON u.id = c.createur_id
+                    {$where}
+                    ORDER BY c.{$order_by} {$order_dir}";
+
+        $stmt = $this->conn->prepare($query);
+        if ($categorie !== '') {
+            $stmt->bindValue(':categorie', $categorie, PDO::PARAM_STR);
+        }
+        $stmt->execute();
+        return $stmt;
+    }
+
     // Lire une communauté
     public function read_single() {
-        $query = "SELECT c.*, m.nom, m.prenom 
-                  FROM " . $this->table . " c 
-                  LEFT JOIN membre m ON c.createur_id = m.id 
-                  WHERE c.id = ? LIMIT 0,1";
+          $query = "SELECT c.*,
+                                 COALESCE(NULLIF(u.username, ''), NULLIF(u.first_name, ''), 'Utilisateur') AS prenom,
+                                 COALESCE(NULLIF(u.last_name, ''), '') AS nom,
+                                 u.profile_picture_url AS profile_picture_url,
+                                 COALESCE(
+                                     NULLIF(u.username, ''),
+                                     NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''),
+                                     CONCAT('Utilisateur #', c.createur_id)
+                                 ) AS createur_display_name
+                        FROM " . $this->table . " c
+                        LEFT JOIN users u ON u.id = c.createur_id
+                        WHERE c.id = ? LIMIT 0,1";
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(1, $this->id);
@@ -85,7 +195,8 @@ class Communaute {
             $this->avatar = $row['avatar'];
             $this->visibilite = $row['visibilite'];
             $this->regles = $row['regles'];
-            $this->createur_nom = $row['prenom'] . ' ' . $row['nom'];
+            $this->createur_nom = $row['createur_display_name'] ?? (!empty($this->createur_id) ? ('Utilisateur #' . $this->createur_id) : 'Utilisateur');
+            $this->createur_profile_picture_url = $row['profile_picture_url'] ?? null;
             return true;
         }
         return false;
@@ -93,11 +204,19 @@ class Communaute {
 
     // Lire les communautés par créateur
     public function read_by_createur($createur_id) {
-        $query = "SELECT c.*, m.nom, m.prenom 
-                  FROM " . $this->table . " c 
-                  LEFT JOIN membre m ON c.createur_id = m.id 
-                  WHERE c.createur_id = :createur_id 
-                  ORDER BY c.date_creation DESC";
+          $query = "SELECT c.*,
+                                 COALESCE(NULLIF(u.username, ''), NULLIF(u.first_name, ''), 'Utilisateur') AS prenom,
+                                 COALESCE(NULLIF(u.last_name, ''), '') AS nom,
+                                 u.profile_picture_url AS profile_picture_url,
+                                 COALESCE(
+                                     NULLIF(u.username, ''),
+                                     NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''),
+                                     CONCAT('Utilisateur #', c.createur_id)
+                                 ) AS createur_display_name
+                        FROM " . $this->table . " c
+                        LEFT JOIN users u ON u.id = c.createur_id
+                        WHERE c.createur_id = :createur_id
+                        ORDER BY c.date_creation DESC";
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':createur_id', $createur_id);
@@ -186,70 +305,40 @@ class Communaute {
         return false;
     }
 
-    // === NOUVELLES MÉTHODES POUR REJOINDRE ===
-
-    // Vérifier si un membre a rejoint une communauté
-    public function hasJoined($membre_id, $communaute_id) {
-        $this->ensureMembershipTable();
-        try {
-            $query = "SELECT id FROM membre_communaute 
-                      WHERE membre_id = :membre_id AND communaute_id = :communaute_id";
-            
-            $stmt = $this->conn->prepare($query);
-            $stmt->bindParam(':membre_id', $membre_id);
-            $stmt->bindParam(':communaute_id', $communaute_id);
-            $stmt->execute();
-            
-            return $stmt->rowCount() > 0;
-        } catch (PDOException $e) {
-            // Si la table n'existe pas, retourner false
-            error_log("Erreur hasJoined: " . $e->getMessage());
-            return false;
-        }
+    // Fonctionnalité supprimée : ces méthodes restent pour compatibilité
+    // mais sont maintenant actives (join/quitter) via communaute_membres.
+    public function hasJoined($user_id, $communaute_id) {
+        $query = "SELECT 1 FROM communaute_membres WHERE communaute_id = :cid AND user_id = :uid LIMIT 1";
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindValue(':cid', (int) $communaute_id, PDO::PARAM_INT);
+        $stmt->bindValue(':uid', (int) $user_id, PDO::PARAM_INT);
+        $stmt->execute();
+        return (bool) $stmt->fetchColumn();
     }
 
-    // Rejoindre une communauté
-    public function join($membre_id, $communaute_id) {
-        $this->ensureMembershipTable();
-        try {
-            $query = "INSERT INTO membre_communaute (membre_id, communaute_id, date_join) 
-                      VALUES (:membre_id, :communaute_id, NOW())";
-            
-            $stmt = $this->conn->prepare($query);
-            $stmt->bindParam(':membre_id', $membre_id);
-            $stmt->bindParam(':communaute_id', $communaute_id);
-            
-            $result = $stmt->execute();
-            
-            if (!$result) {
-                error_log("Erreur join: " . implode(", ", $stmt->errorInfo()));
-            }
-            
-            return $result;
-            
-        } catch (PDOException $e) {
-            error_log("Erreur join communauté: " . $e->getMessage());
-            return false;
-        }
+    public function join($user_id, $communaute_id) {
+        $query = "INSERT IGNORE INTO communaute_membres (communaute_id, user_id) VALUES (:cid, :uid)";
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindValue(':cid', (int) $communaute_id, PDO::PARAM_INT);
+        $stmt->bindValue(':uid', (int) $user_id, PDO::PARAM_INT);
+        return $stmt->execute();
     }
 
-    private function ensureMembershipTable() {
-        $sql = "CREATE TABLE IF NOT EXISTS membre_communaute (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    membre_id INT NOT NULL,
-                    communaute_id INT NOT NULL,
-                    date_join TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    role ENUM('membre', 'moderateur', 'admin') DEFAULT 'membre',
-                    FOREIGN KEY (membre_id) REFERENCES membre(id) ON DELETE CASCADE,
-                    FOREIGN KEY (communaute_id) REFERENCES communaute(id) ON DELETE CASCADE,
-                    UNIQUE KEY unique_membre_communaute (membre_id, communaute_id)
-                )";
+    public function leave($user_id, $communaute_id) {
+        $query = "DELETE FROM communaute_membres WHERE communaute_id = :cid AND user_id = :uid";
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindValue(':cid', (int) $communaute_id, PDO::PARAM_INT);
+        $stmt->bindValue(':uid', (int) $user_id, PDO::PARAM_INT);
+        return $stmt->execute();
+    }
 
-        try {
-            $this->conn->exec($sql);
-        } catch (PDOException $e) {
-            error_log("Erreur ensureMembershipTable: " . $e->getMessage());
-        }
+    public function getJoinedCommunauteIds($user_id) {
+        $query = "SELECT communaute_id FROM communaute_membres WHERE user_id = :uid";
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindValue(':uid', (int) $user_id, PDO::PARAM_INT);
+        $stmt->execute();
+        $rows = $stmt->fetchAll(PDO::FETCH_COLUMN, 0);
+        return array_map('intval', $rows ?: []);
     }
 
     // Compter toutes les communautés
@@ -273,9 +362,15 @@ class Communaute {
 
     // Récupérer les dernières communautés créées
     public function getLatest($limit = 5) {
-        $query = "SELECT c.id, c.nom, c.categorie, c.date_creation, m.prenom, m.nom as nom_membre 
+        $query = "SELECT c.id, c.nom, c.categorie, c.date_creation, c.createur_id,
+                         u.profile_picture_url AS profile_picture_url,
+                         COALESCE(
+                             NULLIF(u.username, ''),
+                             NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''),
+                             CONCAT('Utilisateur #', c.createur_id)
+                         ) AS createur_display_name
                   FROM " . $this->table . " c
-                  LEFT JOIN membre m ON c.createur_id = m.id
+                  LEFT JOIN users u ON u.id = c.createur_id
                   ORDER BY c.date_creation DESC
                   LIMIT :limit";
 

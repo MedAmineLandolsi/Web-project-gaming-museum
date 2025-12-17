@@ -7,7 +7,7 @@
                     <p class="text-muted">Rassemblez des personnes autour de vos centres d'intérêt</p>
                 </div>
 
-                <form action="/projet/communautes/create" method="POST" id="communauteFormFront">
+                <form action="<?php echo BASE_URL; ?>/communautes/create" method="POST" id="communauteFormFront">
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
@@ -48,7 +48,7 @@
                             <div class="mb-3">
                                 <label for="visibilite" class="form-label">Visibilité</label>
                                 <select class="form-control" id="visibilite" name="visibilite">
-                                    <option value="publique" <?php echo ($_SESSION['old_input']['visibilite'] ?? 'publique') == 'publique' ? 'selected' : ''; ?>>Publique - Tout le monde peut voir et rejoindre</option>
+                                    <option value="publique" <?php echo ($_SESSION['old_input']['visibilite'] ?? 'publique') == 'publique' ? 'selected' : ''; ?>>Publique - Tout le monde peut voir</option>
                                     <option value="privee" <?php echo ($_SESSION['old_input']['visibilite'] ?? '') == 'privee' ? 'selected' : ''; ?>>Privée - Visible mais besoin d'approbation</option>
                                     <option value="cachee" <?php echo ($_SESSION['old_input']['visibilite'] ?? '') == 'cachee' ? 'selected' : ''; ?>>Cachée - Seulement sur invitation</option>
                                 </select>
@@ -70,11 +70,11 @@
                         <label for="regles" class="form-label">Règles de la communauté</label>
                         <textarea class="form-control" id="regles" name="regles" rows="4" 
                                   placeholder="Définissez les règles de comportement dans votre communauté..."><?php echo $_SESSION['old_input']['regles'] ?? ''; ?></textarea>
-                        <div class="form-text">Ces règles seront affichées à tous les membres.</div>
+                        <div class="form-text">Ces règles seront affichées à tous les utilisateurs.</div>
                     </div>
 
                     <div class="d-flex gap-2 justify-content-end">
-                        <a href="/projet/communautes" class="btn btn-secondary">
+                        <a href="<?php echo BASE_URL; ?>/communautes" class="btn btn-secondary">
                             <i class="fas fa-arrow-left me-2"></i>Annuler
                         </a>
                         <button type="submit" class="btn btn-primary">

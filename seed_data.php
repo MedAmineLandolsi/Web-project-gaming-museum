@@ -9,74 +9,8 @@ try {
 
     echo "<h2>Insertion des données de démonstration...</h2>";
 
-    // === INSERTION DES MEMBRES ===
-    $membres = [
-        [
-            'nom' => 'Dupont',
-            'prenom' => 'Jean',
-            'email' => 'jean.dupont@email.com',
-            'mot_de_passe' => 'password123',
-            'statut' => 'actif',
-            'avatar' => 'https://i.pravatar.cc/150?img=1',
-            'bio' => 'Développeur passionné par les nouvelles technologies.'
-        ],
-        [
-            'nom' => 'Martin',
-            'prenom' => 'Marie',
-            'email' => 'marie.martin@email.com',
-            'mot_de_passe' => 'password123',
-            'statut' => 'actif',
-            'avatar' => 'https://i.pravatar.cc/150?img=2',
-            'bio' => 'Designer graphique et amatrice de photographie.'
-        ],
-        [
-            'nom' => 'Bernard',
-            'prenom' => 'Pierre',
-            'email' => 'pierre.bernard@email.com',
-            'mot_de_passe' => 'password123',
-            'statut' => 'actif',
-            'avatar' => 'https://i.pravatar.cc/150?img=3',
-            'bio' => 'Étudiant en informatique et passionné de jeux vidéo.'
-        ],
-        [
-            'nom' => 'Petit',
-            'prenom' => 'Sophie',
-            'email' => 'sophie.petit@email.com',
-            'mot_de_passe' => 'password123',
-            'statut' => 'actif',
-            'avatar' => 'https://i.pravatar.cc/150?img=4',
-            'bio' => 'Professeure de musique et chanteuse amateur.'
-        ]
-    ];
-
-    foreach ($membres as $membre) {
-        // Vérifier si l'email existe déjà
-        $checkQuery = "SELECT COUNT(*) FROM membre WHERE email = :email";
-        $checkStmt = $db->prepare($checkQuery);
-        $checkStmt->bindParam(':email', $membre['email']);
-        $checkStmt->execute();
-        $exists = $checkStmt->fetchColumn();
-
-        if ($exists) {
-            echo "<p style='color: orange;'>! Email déjà existant: " . $membre['email'] . "</p>";
-            continue;
-        }
-
-        $query = "INSERT INTO membre (nom, prenom, email, mot_de_passe, statut, avatar, bio) 
-                  VALUES (:nom, :prenom, :email, :mot_de_passe, :statut, :avatar, :bio)";
-        $stmt = $db->prepare($query);
-        $stmt->bindParam(':nom', $membre['nom']);
-        $stmt->bindParam(':prenom', $membre['prenom']);
-        $stmt->bindParam(':email', $membre['email']);
-        $mot_de_passe_hash = password_hash($membre['mot_de_passe'], PASSWORD_DEFAULT);
-        $stmt->bindParam(':mot_de_passe', $mot_de_passe_hash);
-        $stmt->bindParam(':statut', $membre['statut']);
-        $stmt->bindParam(':avatar', $membre['avatar']);
-        $stmt->bindParam(':bio', $membre['bio']);
-        if($stmt->execute()) {
-            echo "<p style='color: green;'>✓ Membre créé: " . $membre['prenom'] . " " . $membre['nom'] . "</p>";
-        }
-    }
+    // === INSERTION DES UTILISATEURS ===
+    // La création automatique des profils a été désactivée (fonctionnalité supprimée).
 
     // === INSERTION DES COMMUNAUTÉS ===
     $communautes = [
@@ -87,7 +21,7 @@ try {
             'createur_id' => 1,
             'avatar' => 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=150',
             'visibilite' => 'publique',
-            'regles' => 'Respectez les autres membres. Pas de spam. Partagez du contenu pertinent au développement web.'
+            'regles' => 'Respectez les autres utilisateurs. Pas de spam. Partagez du contenu pertinent au développement web.'
         ],
         [
             'nom' => 'Artistes Numériques',
@@ -215,7 +149,8 @@ try {
     }
 
     echo "<h3 style='color: green;'>✅ Données de démonstration insérées avec succès !</h3>";
-    echo "<p><a href='/projet/'>Voir les communautés</a> | <a href='/projet/admin/'>Accéder à l'administration</a></p>";
+    $baseUrl = defined('BASE_URL') ? BASE_URL : '';
+    echo "<p><a href='" . $baseUrl . "/'>Voir les communautés</a> | <a href='" . $baseUrl . "/admin/'>Accéder à l'administration</a></p>";
 
 } catch(PDOException $e) {
     echo "<p style='color: red;'>Erreur: " . $e->getMessage() . "</p>";

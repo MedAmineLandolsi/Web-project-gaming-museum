@@ -3,7 +3,7 @@
         <h4>Modifier la communauté</h4>
     </div>
     <div class="card-body">
-        <form action="/projet/admin/communautes/<?php echo $this->communauteModel->id; ?>/edit" method="POST" data-validate="true">
+        <form action="<?php echo BASE_URL; ?>/admin/communautes/<?php echo $this->communauteModel->id; ?>/edit" method="POST" data-validate="true">
             <div class="row">
                 <div class="col-md-6">
                     <div class="mb-3">
@@ -77,7 +77,7 @@
                 <button type="submit" class="btn btn-primary">
                     <i class="fas fa-save"></i> Mettre à jour
                 </button>
-                <a href="/projet/admin/communautes" class="btn btn-secondary">
+                <a href="<?php echo BASE_URL; ?>/admin/communautes" class="btn btn-secondary">
                     <i class="fas fa-arrow-left"></i> Annuler
                 </a>
             </div>

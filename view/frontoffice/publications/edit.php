@@ -32,7 +32,7 @@
                 <?php unset($_SESSION['form_errors']); ?>
             <?php endif; ?>
 
-            <form action="/projet/publications/update/<?php echo $this->publicationModel->id; ?>" method="POST" enctype="multipart/form-data">
+            <form action="<?php echo BASE_URL; ?>/publications/update/<?php echo $this->publicationModel->id; ?>" method="POST" enctype="multipart/form-data">
                 <!-- Contenu de la publication -->
                 <div class="mb-4">
                     <label for="contenu" class="form-label">Contenu *</label>
@@ -107,7 +107,7 @@
 
                 <!-- Boutons d'action -->
                 <div class="d-flex gap-2 justify-content-end">
-                    <a href="/projet/communautes/<?php echo $this->publicationModel->communaute_id; ?>" class="btn btn-secondary">
+                    <a href="<?php echo BASE_URL; ?>/communautes/<?php echo $this->publicationModel->communaute_id; ?>" class="btn btn-secondary">
                         <i class="fas fa-arrow-left me-2"></i>Annuler
                     </a>
                     <button type="submit" class="btn btn-primary">

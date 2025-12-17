@@ -1,16 +1,13 @@
 <?php
 $defaultStats = [
-    'members_total' => 0,
     'communautes_total' => 0,
     'publications_total' => 0,
     'comments_total' => 0,
-    'members_new_week' => 0,
     'communautes_new_month' => 0,
     'publications_today' => 0,
     'engagement_rate' => 0,
 ];
 $stats = isset($stats) && is_array($stats) ? array_merge($defaultStats, $stats) : $defaultStats;
-$latestMembers = $latestMembers ?? [];
 $latestCommunautes = $latestCommunautes ?? [];
 $latestPublications = $latestPublications ?? [];
 $statusClasses = [
@@ -22,18 +19,23 @@ $truncate = function ($text, $limit = 90) {
     $clean = strip_tags((string) $text);
     return strlen($clean) > $limit ? substr($clean, 0, $limit) . '...' : $clean;
 };
+
+$__base = rtrim((string) BASE_URL, '/');
+$__root = preg_replace('#/projet/?$#', '', $__base);
+$__uploadsBase = ($__root === '') ? '/gaming_museum/uploads' : ($__root . '/gaming_museum/uploads');
+$__makeAvatarUrl = function ($profilePictureUrl) use ($__uploadsBase) {
+    $pp = trim((string) $profilePictureUrl);
+    if ($pp === '') {
+        return null;
+    }
+    if (preg_match('#^https?://#i', $pp) || substr($pp, 0, 1) === '/') {
+        return $pp;
+    }
+    return rtrim($__uploadsBase, '/') . '/' . ltrim($pp, '/');
+};
 ?>
 
 <section class="stats-overview">
-    <article class="stat-card stat-primary">
-        <i class="fas fa-users stat-icon"></i>
-        <div class="stat-content">
-            <span class="stat-label">Membres actifs</span>
-            <span class="stat-value"><?= number_format($stats['members_total'], 0, ',', ' ') ?></span>
-            <span class="stat-change positive">+<?= number_format($stats['members_new_week'], 0, ',', ' ') ?> cette semaine</span>
-        </div>
-    </article>
-
     <article class="stat-card stat-secondary">
         <i class="fas fa-layer-group stat-icon"></i>
         <div class="stat-content">
@@ -70,19 +72,16 @@ $truncate = function ($text, $limit = 90) {
     </div>
     <div class="admin-card-body">
         <div class="quick-action-grid">
-            <a href="/projet/admin/membres/create" class="quick-action">
-                <i class="fas fa-user-plus"></i>
-                <span>Nouveau membre</span>
-            </a>
-            <a href="/projet/admin/communautes/create" class="quick-action">
+                    <!-- Action supprimée -->
+            <a href="<?php echo BASE_URL; ?>/admin/communautes/create" class="quick-action">
                 <i class="fas fa-users-medical"></i>
                 <span>Nouvelle communauté</span>
             </a>
-            <a href="/projet/admin/publications/create" class="quick-action">
+            <a href="<?php echo BASE_URL; ?>/admin/publications/create" class="quick-action">
                 <i class="fas fa-pen-nib"></i>
                 <span>Nouvelle publication</span>
             </a>
-            <a href="/projet/" class="quick-action">
+            <a href="<?php echo BASE_URL; ?>/" class="quick-action">
                 <i class="fas fa-eye"></i>
                 <span>Voir le site</span>
             </a>
@@ -104,13 +103,22 @@ $truncate = function ($text, $limit = 90) {
             <?php else: ?>
                 <ul class="activity-list">
                     <?php foreach ($latestPublications as $publication): ?>
+                        <?php
+                            $authorName = $publication['auteur_display_name']
+                                ?? trim(($publication['prenom'] ?? '') . ' ' . ($publication['nom'] ?? ''));
+                            $authorAvatar = $__makeAvatarUrl($publication['profile_picture_url'] ?? null);
+                        ?>
                         <li class="activity-item">
                             <div class="activity-icon">
-                                <i class="fas fa-comment-dots"></i>
+                                <?php if (!empty($authorAvatar)): ?>
+                                    <img src="<?= htmlspecialchars($authorAvatar) ?>" alt="Avatar" style="width:36px;height:36px;border-radius:50%;object-fit:cover;">
+                                <?php else: ?>
+                                    <i class="fas fa-comment-dots"></i>
+                                <?php endif; ?>
                             </div>
                             <div class="activity-content">
                                 <div class="activity-title">
-                                    <?= htmlspecialchars(($publication['prenom'] ?? '') . ' ' . ($publication['nom'] ?? '')) ?>
+                                    <?= htmlspecialchars($authorName) ?>
                                     <span>→ <?= htmlspecialchars($publication['communaute_nom'] ?? 'Communauté') ?></span>
                                 </div>
                                 <div class="activity-meta">
@@ -137,31 +145,10 @@ $truncate = function ($text, $limit = 90) {
         </div>
         <div class="admin-card-body">
             <div class="list-card">
-                <h4><i class="fas fa-user-clock me-2"></i>Derniers membres</h4>
-                <?php if (empty($latestMembers)): ?>
-                    <div class="empty-state small">
-                        <p>Aucun membre récent</p>
-                    </div>
-                <?php else: ?>
-                    <ul class="mini-list">
-                        <?php foreach ($latestMembers as $member): ?>
-                            <li class="mini-item">
-                                <div>
-                                    <span class="mini-title">
-                                        <?= htmlspecialchars(($member['prenom'] ?? '') . ' ' . ($member['nom'] ?? '')) ?>
-                                    </span>
-                                    <span class="mini-meta"><?= htmlspecialchars($member['email'] ?? '') ?></span>
-                                </div>
-                                <div class="mini-extra">
-                                    <span class="mini-date"><?= date('d/m', strtotime($member['date_inscription'] ?? 'now')) ?></span>
-                                    <span class="status-badge <?= $statusClasses[$member['statut']] ?? 'status-actif' ?>">
-                                        <?= strtoupper($member['statut'] ?? 'actif') ?>
-                                    </span>
-                                </div>
-                            </li>
-                        <?php endforeach; ?>
-                    </ul>
-                <?php endif; ?>
+                <h4><i class="fas fa-user-clock me-2"></i>Informations utilisateurs</h4>
+                <div class="empty-state small">
+                    <p>Section utilisateurs indisponible</p>
+                </div>
             </div>
 
             <div class="list-card mt-4">
@@ -173,6 +160,11 @@ $truncate = function ($text, $limit = 90) {
                 <?php else: ?>
                     <ul class="mini-list">
                         <?php foreach ($latestCommunautes as $communaute): ?>
+                                <?php
+                                    $creatorName = $communaute['createur_display_name']
+                                        ?? trim(($communaute['prenom'] ?? '') . ' ' . ($communaute['nom'] ?? ''));
+                                    $creatorAvatar = $__makeAvatarUrl($communaute['profile_picture_url'] ?? null);
+                                ?>
                             <li class="mini-item">
                                 <div>
                                     <span class="mini-title"><?= htmlspecialchars($communaute['nom'] ?? 'Communauté') ?></span>
@@ -181,8 +173,12 @@ $truncate = function ($text, $limit = 90) {
                                 <div class="mini-extra">
                                     <span class="mini-date"><?= date('d/m', strtotime($communaute['date_creation'] ?? 'now')) ?></span>
                                     <span class="mini-author">
-                                        <i class="fas fa-user"></i>
-                                        <?= htmlspecialchars(($communaute['prenom'] ?? '') . ' ' . ($communaute['nom_membre'] ?? '')) ?>
+                                            <?php if (!empty($creatorAvatar)): ?>
+                                                <img src="<?= htmlspecialchars($creatorAvatar) ?>" alt="Avatar" style="width:18px;height:18px;border-radius:50%;object-fit:cover;vertical-align:-3px;">
+                                            <?php else: ?>
+                                                <i class="fas fa-user"></i>
+                                            <?php endif; ?>
+                                            <?= htmlspecialchars($creatorName) ?>
                                     </span>
                                 </div>
                             </li>

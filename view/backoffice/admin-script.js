@@ -497,148 +497,7 @@ class AdminPanel {
     }
 
     setupCommunityActions() {
-        const joinButtons = document.querySelectorAll('.join-community-btn');
-        joinButtons.forEach(button => {
-            button.addEventListener('click', () => this.handleJoinCommunity(button));
-        });
-
-        // Gestion des boutons "Quitter"
-        const quitButtons = document.querySelectorAll('.leave-community-btn');
-        quitButtons.forEach(button => {
-            button.addEventListener('click', () => this.handleLeaveCommunity(button));
-        });
-    }
-
-    async handleJoinCommunity(button) {
-        if (button.disabled) {
-            return;
-        }
-
-        const communauteId = button.dataset.communauteId;
-        const communauteName = button.dataset.communauteName || 'cette communauté';
-
-        if (!communauteId) {
-            this.showNotification('Impossible de déterminer la communauté.', 'warning');
-            return;
-        }
-
-        const originalContent = button.innerHTML;
-        button.disabled = true;
-        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-
-        try {
-            const response = await fetch('/projet/api/join-community', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ communaute_id: communauteId })
-            });
-
-            // Lire la réponse (même si le status n'est pas OK) et tenter de parser
-            const text = await response.text();
-            let result = null;
-            try {
-                result = JSON.parse(text);
-            } catch (parseError) {
-                console.error('Erreur parsing JSON:', parseError, text);
-            }
-
-            if (!response.ok) {
-                const message = (result && result.message) ? result.message : `Erreur serveur (${response.status})`;
-                button.disabled = false;
-                button.innerHTML = originalContent;
-                this.showNotification(message, 'error');
-                return;
-            }
-
-            if (result && result.success) {
-                button.innerHTML = '<i class="fas fa-check"></i> Rejoint';
-                button.classList.remove('btn-outline-success');
-                button.classList.add('btn-success');
-                button.disabled = true;
-                this.showNotification(result.message || `Vous avez rejoint ${communauteName}.`, 'success');
-            } else {
-                button.disabled = false;
-                button.innerHTML = originalContent;
-                this.showNotification((result && result.message) ? result.message : 'Impossible de rejoindre cette communauté.', 'warning');
-            }
-        } catch (error) {
-            console.error('Erreur join communauté:', error);
-            button.disabled = false;
-            button.innerHTML = originalContent;
-            this.showNotification('Erreur lors de la tentative de rejoindre la communauté. Vérifiez votre connexion.', 'error');
-        }
-    }
-
-    async handleLeaveCommunity(button) {
-        if (button.disabled) {
-            return;
-        }
-
-        const communauteId = button.dataset.communauteId;
-        const communauteName = button.dataset.communauteName || 'cette communauté';
-
-        if (!communauteId) {
-            this.showNotification('Impossible de déterminer la communauté.', 'warning');
-            return;
-        }
-
-        const originalContent = button.innerHTML;
-        button.disabled = true;
-        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-
-        try {
-            const response = await fetch('/projet/api/leave-community', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ communaute_id: communauteId })
-            });
-
-            const text = await response.text();
-            let result = null;
-            try {
-                result = JSON.parse(text);
-            } catch (parseError) {
-                console.error('Erreur parsing JSON:', parseError, text);
-            }
-
-            if (!response.ok) {
-                const message = (result && result.message) ? result.message : `Erreur serveur (${response.status})`;
-                button.disabled = false;
-                button.innerHTML = originalContent;
-                this.showNotification(message, 'error');
-                return;
-            }
-
-            if (result && result.success) {
-                // Transformer le bouton "Quitter" en "Rejoindre"
-                button.classList.remove('btn-danger', 'leave-community-btn');
-                button.classList.add('btn-outline-success', 'join-community-btn');
-                button.setAttribute('data-communaute-id', communauteId);
-                button.setAttribute('data-communaute-name', communauteName);
-                button.innerHTML = '<i class="fas fa-user-plus"></i>';
-                button.disabled = false;
-                button.title = 'Rejoindre cette communauté';
-                
-                // Réattacher l'événement "Rejoindre"
-                button.removeEventListener('click', arguments.callee);
-                button.addEventListener('click', () => this.handleJoinCommunity(button));
-                
-                this.showNotification(result.message || `Vous avez quitté ${communauteName} avec succès.`, 'success');
-            } else {
-                button.disabled = false;
-                button.innerHTML = originalContent;
-                this.showNotification(result.message || 'Impossible de quitter cette communauté.', 'warning');
-            }
-        } catch (error) {
-            console.error('Erreur quit communauté:', error);
-            button.disabled = false;
-            button.innerHTML = originalContent;
-            this.showNotification('Erreur lors de la tentative de quitter la communauté. Vérifiez votre connexion.', 'error');
-        }
+        // Fonctionnalité "rejoindre/quitter" supprimée.
     }
 
     // =============================================
@@ -719,6 +578,11 @@ class AdminPanel {
     }
 
     handleFormSubmission(form, event) {
+        // Si la validation a bloqué la soumission, ne pas passer en "Traitement..."
+        if (event && event.defaultPrevented) {
+            return;
+        }
+
         const submitBtn = form.querySelector('button[type="submit"]');
         
         if (submitBtn) {
@@ -737,6 +601,16 @@ class AdminPanel {
                 submitBtn.innerHTML = submitBtn.dataset.originalText;
             }, 30000);
         }
+    }
+
+    resetAllLoadingStates() {
+        const submitButtons = document.querySelectorAll('button[type="submit"][data-original-text]');
+        submitButtons.forEach(btn => {
+            if (btn.disabled) {
+                btn.disabled = false;
+                btn.innerHTML = btn.dataset.originalText;
+            }
+        });
     }
 
     setupFileUploads() {
@@ -889,7 +763,7 @@ class AdminPanel {
 
     generateMockResults(query) {
         return [
-            { type: 'Membre', title: `Utilisateur "${query}"`, url: '#' },
+            { type: 'Utilisateur', title: `Utilisateur "${query}"`, url: '#' },
             { type: 'Communauté', title: `Communauté "${query}"`, url: '#' },
             { type: 'Publication', title: `Publication "${query}"`, url: '#' }
         ];
@@ -1219,6 +1093,13 @@ class AdminPanel {
     static init() {
         document.addEventListener('DOMContentLoaded', () => {
             window.adminPanel = new AdminPanel();
+            window.adminPanel.resetAllLoadingStates();
+        });
+
+        window.addEventListener('pageshow', () => {
+            if (window.adminPanel && typeof window.adminPanel.resetAllLoadingStates === 'function') {
+                window.adminPanel.resetAllLoadingStates();
+            }
         });
     }
 }

@@ -20,7 +20,7 @@ if (isset($_SESSION['old_input']['images'])) {
         </h4>
     </div>
     <div class="card-body">
-        <form action="/projet/admin/publications/create" method="POST" id="publicationForm">
+        <form action="<?php echo BASE_URL; ?>/admin/publications/create" method="POST" id="publicationForm">
             <div class="mb-3">
                 <label for="communaute_id" class="form-label">Communauté *</label>
                 <select class="form-control" id="communaute_id" name="communaute_id">
@@ -56,7 +56,7 @@ if (isset($_SESSION['old_input']['images'])) {
                 <button type="submit" class="btn btn-primary">
                     <i class="fas fa-save me-2"></i>Créer la publication
                 </button>
-                <a href="/projet/admin/publications" class="btn btn-secondary">
+                <a href="<?php echo BASE_URL; ?>/admin/publications" class="btn btn-secondary">
                     <i class="fas fa-arrow-left me-2"></i>Annuler
                 </a>
             </div>

@@ -21,6 +21,12 @@ $communaute_info = $communaute_info ?? null;
 <?php endif; ?>
 
 <div class="row">
+    <?php
+        $__base = defined('BASE_URL') ? (string) BASE_URL : '';
+        $__root = rtrim(str_replace('\\', '/', dirname($__base)), '/');
+        if ($__root === '.' || $__root === '/') { $__root = ''; }
+        $__uploadsBase = ($__root === '') ? '/gaming_museum/uploads' : ($__root . '/gaming_museum/uploads');
+    ?>
     <div class="col-12">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <div>
@@ -33,7 +39,7 @@ $communaute_info = $communaute_info ?? null;
                     <?php endif; ?>
                 </h1>
             </div>
-            <a href="/projet/publications/create<?php echo $communaute_info ? '?communaute_id=' . $communaute_info->id : ''; ?>" class="btn btn-primary">
+            <a href="<?php echo BASE_URL; ?>/publications/create<?php echo $communaute_info ? '?communaute_id=' . $communaute_info->id : ''; ?>" class="btn btn-primary">
                 <i class="fas fa-plus me-2"></i>Nouvelle publication
             </a>
         </div>
@@ -53,12 +59,34 @@ $communaute_info = $communaute_info ?? null;
 <div class="alert alert-info alert-dismissible fade show mb-4" role="alert">
     <i class="fas fa-filter me-2"></i>
     Affichage des publications de la communauté <strong><?php echo htmlspecialchars($communaute_info->nom); ?></strong>
-    <a href="/projet/publications" class="btn btn-sm btn-outline-info ms-3">
+    <a href="<?php echo BASE_URL; ?>/publications" class="btn btn-sm btn-outline-info ms-3">
         <i class="fas fa-times me-1"></i>Voir toutes les publications
     </a>
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
 </div>
 <?php endif; ?>
+
+<!-- Filtre par catégorie (type de communauté) -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="sorting-options card p-3">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Filtrer :</h5>
+                <div class="d-flex gap-2">
+                    <select class="form-select form-select-sm" id="publicationCategoryFilter" onchange="applyPublicationFilters()">
+                        <option value="">Toutes catégories</option>
+                        <?php foreach (($categories ?? []) as $cat): ?>
+                            <?php $cat = (string) $cat; ?>
+                            <option value="<?php echo htmlspecialchars($cat); ?>" <?php echo (($_GET['categorie'] ?? '') === $cat) ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($cat); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- STRUCTURE CENTRÉE DES PUBLICATIONS -->
 <div class="row justify-content-center">
@@ -66,15 +94,24 @@ $communaute_info = $communaute_info ?? null;
         <div class="publication-grid">
             <?php if (!empty($publications)): ?>
                 <?php foreach ($publications as $publication): ?>
+                <?php
+                    $authorName = $publication['auteur_display_name']
+                        ?? trim(($publication['prenom'] ?? '') . ' ' . ($publication['nom'] ?? ''));
+                    $authorInitials = strtoupper(substr(preg_replace('/\s+/', '', (string) $authorName), 0, 2));
+                ?>
                 <div class="publication-card-enhanced">
                     <!-- En-tête publication -->
                     <div class="publication-header">
-                        <div class="avatar">
-                            <?php echo strtoupper(substr($publication['prenom'], 0, 1) . substr($publication['nom'], 0, 1)); ?>
-                        </div>
+                            <?php if (!empty($publication['profile_picture_url'])): ?>
+                                <img src="<?php echo htmlspecialchars($__uploadsBase . '/' . $publication['profile_picture_url']); ?>" alt="Avatar" class="rounded-circle" style="width:44px;height:44px;object-fit:cover;border:2px solid rgba(0,255,65,0.6);">
+                            <?php else: ?>
+                                <div class="avatar">
+                                    <?php echo htmlspecialchars($authorInitials ?: 'U'); ?>
+                                </div>
+                            <?php endif; ?>
                         <div class="publication-author">
                             <div class="publication-author-name">
-                                <?php echo htmlspecialchars($publication['prenom'] . ' ' . $publication['nom']); ?>
+                                <?php echo htmlspecialchars($authorName); ?>
                                 <?php if (!$communaute_info): ?>
                                     <small class="text-muted">dans</small>
                                     <strong class="text-primary"><?php echo htmlspecialchars($publication['communaute_nom']); ?></strong>
@@ -145,7 +182,7 @@ $communaute_info = $communaute_info ?? null;
                             <h6 class="mb-0"><i class="fas fa-user-cog me-1"></i>Gérer votre publication</h6>
                             <div class="publication-owner-buttons">
                                 <!-- BOUTON MODIFIER -->
-                                <a href="/projet/publications/edit/<?php echo $publication['id']; ?>" 
+                                <a href="<?php echo BASE_URL; ?>/publications/edit/<?php echo $publication['id']; ?>" 
                                    class="btn btn-warning btn-sm">
                                     <i class="fas fa-edit me-1"></i>Modifier
                                 </a>
@@ -180,7 +217,7 @@ $communaute_info = $communaute_info ?? null;
                                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                                         <i class="fas fa-times me-1"></i>Annuler
                                     </button>
-                                    <form action="/projet/publications/<?php echo $publication['id']; ?>/delete" method="POST" class="d-inline">
+                                    <form action="<?php echo BASE_URL; ?>/publications/<?php echo $publication['id']; ?>/delete" method="POST" class="d-inline">
                                         <input type="hidden" name="communaute_id" value="<?php echo $publication['communaute_id']; ?>">
                                         <button type="submit" class="btn btn-danger">
                                             <i class="fas fa-trash me-1"></i>Supprimer définitivement
@@ -204,7 +241,7 @@ $communaute_info = $communaute_info ?? null;
                             Soyez le premier à partager une publication !
                         <?php endif; ?>
                     </p>
-                    <a href="/projet/publications/create<?php echo $communaute_info ? '?communaute_id=' . $communaute_info->id : ''; ?>" class="btn btn-primary">
+                    <a href="<?php echo BASE_URL; ?>/publications/create<?php echo $communaute_info ? '?communaute_id=' . $communaute_info->id : ''; ?>" class="btn btn-primary">
                         <i class="fas fa-plus me-2"></i>
                         <?php if ($communaute_info): ?>
                             Créer la première publication
@@ -438,3 +475,19 @@ $communaute_info = $communaute_info ?? null;
     }
 }
 </style>
+
+<script>
+function applyPublicationFilters() {
+    const categorie = document.getElementById('publicationCategoryFilter')?.value || '';
+    const url = new URL(window.location.href);
+
+    if (categorie) {
+        url.searchParams.set('categorie', categorie);
+    } else {
+        url.searchParams.delete('categorie');
+    }
+
+    // Do not drop existing filters (communaute, order_by, order_dir)
+    window.location.href = url.toString();
+}
+</script>

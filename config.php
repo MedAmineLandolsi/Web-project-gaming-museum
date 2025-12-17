@@ -5,6 +5,12 @@
 @ini_set('display_startup_errors', '0');
 error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
 
+// Optional local secrets (DO NOT commit). Example: config.local.php.example
+$__localConfig = __DIR__ . '/config.local.php';
+if (is_file($__localConfig)) {
+    require_once $__localConfig;
+}
+
 class Database {
     // Use 127.0.0.1 to force TCP (helps on Windows/XAMPP where 'localhost' can use sockets)
     private $host = '127.0.0.1';
@@ -101,21 +107,6 @@ class Database {
                 array(PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION)
             );
             
-            // Table Membre
-            $sql_membre = "CREATE TABLE IF NOT EXISTS membre (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                nom VARCHAR(50) NOT NULL,
-                prenom VARCHAR(50) NOT NULL,
-                email VARCHAR(100) UNIQUE NOT NULL,
-                date_inscription TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                statut ENUM('actif', 'inactif', 'suspendu') DEFAULT 'actif',
-                mot_de_passe VARCHAR(255) NOT NULL,
-                avatar VARCHAR(255),
-                bio TEXT
-            )";
-            
-            $db_with_dbname->exec($sql_membre);
-            
             // Table Communaute
             $sql_communaute = "CREATE TABLE IF NOT EXISTS communaute (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -126,8 +117,7 @@ class Database {
                 date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 avatar VARCHAR(255),
                 visibilite ENUM('publique', 'privee', 'cachee') DEFAULT 'publique',
-                regles TEXT,
-                FOREIGN KEY (createur_id) REFERENCES membre(id) ON DELETE SET NULL
+                regles TEXT
             )";
             
             $db_with_dbname->exec($sql_communaute);
@@ -144,24 +134,23 @@ class Database {
                 date_publication TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 date_modification TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 FOREIGN KEY (communaute_id) REFERENCES communaute(id) ON DELETE CASCADE,
-                FOREIGN KEY (auteur_id) REFERENCES membre(id) ON DELETE CASCADE
+                INDEX (auteur_id)
             )";
             
             $db_with_dbname->exec($sql_publication);
 
-            // Table Membre_Communaute (liaison)
-            $sql_membre_communaute = "CREATE TABLE IF NOT EXISTS membre_communaute (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                membre_id INT NOT NULL,
+            // Table Communauté Membres (join/quitter)
+            $sql_membres = "CREATE TABLE IF NOT EXISTS communaute_membres (
                 communaute_id INT NOT NULL,
-                date_join TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                role ENUM('membre', 'moderateur', 'admin') DEFAULT 'membre',
-                FOREIGN KEY (membre_id) REFERENCES membre(id) ON DELETE CASCADE,
-                FOREIGN KEY (communaute_id) REFERENCES communaute(id) ON DELETE CASCADE,
-                UNIQUE KEY unique_membre_communaute (membre_id, communaute_id)
+                user_id INT NOT NULL,
+                joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (communaute_id, user_id),
+                INDEX (user_id),
+                CONSTRAINT fk_communaute_membres_communaute
+                    FOREIGN KEY (communaute_id) REFERENCES communaute(id) ON DELETE CASCADE
             )";
+            $db_with_dbname->exec($sql_membres);
             
-            $db_with_dbname->exec($sql_membre_communaute);
             
         } catch(PDOException $e) {
             throw new Exception("Error creating tables: " . $e->getMessage());
@@ -178,63 +167,15 @@ class Database {
                 array(PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION)
             );
 
-            // Vérifier si des données existent déjà
-            $stmt = $db_with_dbname->query("SELECT COUNT(*) FROM membre");
-            $count_membres = $stmt->fetchColumn();
+            // Vérifier si des données existent déjà (vérifier les communautés)
+            $stmt = $db_with_dbname->query("SELECT COUNT(*) FROM communaute");
+            $count_communautes = $stmt->fetchColumn();
 
-            if ($count_membres == 0) {
+            if ($count_communautes == 0) {
                 echo "<div style='background: #d4edda; color: #155724; padding: 15px; margin: 10px 0; border-radius: 5px;'>
                         <strong>Initialisation de la base de données</strong><br>
-                        Insertion des données de démonstration...
+                        Insertion des données de démonstration (communautés, publications)...
                       </div>";
-
-                // === INSERTION DES MEMBRES ===
-                $membres = [
-                    [
-                        'nom' => 'Dupont',
-                        'prenom' => 'Jean',
-                        'email' => 'jean.dupont@email.com',
-                        'mot_de_passe' => password_hash('password123', PASSWORD_DEFAULT),
-                        'statut' => 'actif',
-                        'avatar' => 'https://i.pravatar.cc/150?img=1',
-                        'bio' => 'Développeur passionné par les nouvelles technologies et le web.'
-                    ],
-                    [
-                        'nom' => 'Martin',
-                        'prenom' => 'Marie',
-                        'email' => 'marie.martin@email.com',
-                        'mot_de_passe' => password_hash('password123', PASSWORD_DEFAULT),
-                        'statut' => 'actif',
-                        'avatar' => 'https://i.pravatar.cc/150?img=2',
-                        'bio' => 'Designer graphique et amatrice de photographie et d\'art digital.'
-                    ],
-                    [
-                        'nom' => 'Bernard',
-                        'prenom' => 'Pierre',
-                        'email' => 'pierre.bernard@email.com',
-                        'mot_de_passe' => password_hash('password123', PASSWORD_DEFAULT),
-                        'statut' => 'actif',
-                        'avatar' => 'https://i.pravatar.cc/150?img=3',
-                        'bio' => 'Étudiant en informatique et passionné de jeux vidéo et d\'e-sport.'
-                    ],
-                    [
-                        'nom' => 'Petit',
-                        'prenom' => 'Sophie',
-                        'email' => 'sophie.petit@email.com',
-                        'mot_de_passe' => password_hash('password123', PASSWORD_DEFAULT),
-                        'statut' => 'actif',
-                        'avatar' => 'https://i.pravatar.cc/150?img=4',
-                        'bio' => 'Professeure de musique et chanteuse amateur. J\'adore partager ma passion.'
-                    ]
-                ];
-
-                foreach ($membres as $membre) {
-                    $query = "INSERT INTO membre (nom, prenom, email, mot_de_passe, statut, avatar, bio) 
-                              VALUES (:nom, :prenom, :email, :mot_de_passe, :statut, :avatar, :bio)";
-                    
-                    $stmt = $db_with_dbname->prepare($query);
-                    $stmt->execute($membre);
-                }
 
                 // === INSERTION DES COMMUNAUTÉS ===
                 $communautes = [
@@ -245,7 +186,7 @@ class Database {
                         'createur_id' => 1,
                         'avatar' => 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=300&h=300&fit=crop',
                         'visibilite' => 'publique',
-                        'regles' => 'Respectez les autres membres. Pas de spam. Partagez du contenu pertinent au développement web. Les questions de débutants sont les bienvenues.'
+                        'regles' => 'Respectez les autres utilisateurs. Pas de spam. Partagez du contenu pertinent au développement web. Les questions de débutants sont les bienvenues.'
                     ],
                     [
                         'nom' => 'Artistes Numériques',
@@ -295,10 +236,8 @@ class Database {
 
                 echo "<div style='background: #d1ecf1; color: #0c5460; padding: 15px; margin: 10px 0; border-radius: 5px;'>
                         <strong>✅ Données de démonstration insérées avec succès !</strong><br>
-                        - 4 membres créés<br>
                         - 5 communautés actives<br>
                         - 6 publications avec interactions<br>
-                        - Table membre_communaute créée<br>
                         Vous pouvez maintenant explorer l'application.
                       </div>";
             }

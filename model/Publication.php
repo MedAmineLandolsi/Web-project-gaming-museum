@@ -14,6 +14,7 @@ class Publication {
     public $likes;
     public $commentaires;
     public $auteur_nom;
+    public $auteur_display_name;
     public $communaute_nom;
 
     public function __construct($db) {
@@ -22,11 +23,20 @@ class Publication {
 
     // Lire toutes les publications
     public function read() {
-        $query = "SELECT p.*, m.nom, m.prenom, c.nom as communaute_nom 
-                  FROM " . $this->table . " p 
-                  LEFT JOIN membre m ON p.auteur_id = m.id 
-                  LEFT JOIN communaute c ON p.communaute_id = c.id 
-                  ORDER BY p.date_publication DESC";
+         $query = "SELECT p.*,
+                    COALESCE(NULLIF(u.first_name, ''), NULLIF(u.username, ''), 'Utilisateur') AS prenom,
+                    COALESCE(NULLIF(u.last_name, ''), '') AS nom,
+                    u.profile_picture_url AS profile_picture_url,
+                    COALESCE(
+                        NULLIF(u.username, ''),
+                        NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''),
+                        CONCAT('Utilisateur #', COALESCE(p.user_id, p.auteur_id))
+                    ) AS auteur_display_name,
+                    c.nom as communaute_nom
+                FROM " . $this->table . " p
+                LEFT JOIN communaute c ON p.communaute_id = c.id
+                LEFT JOIN users u ON u.id = COALESCE(p.user_id, p.auteur_id)
+                ORDER BY p.date_publication DESC";
         
         $stmt = $this->conn->prepare($query);
         $stmt->execute();
@@ -53,10 +63,19 @@ class Publication {
         $order_by = in_array($order_by, $allowed_columns) ? $order_by : 'date_publication';
         $order_dir = in_array($order_dir, $allowed_directions) ? $order_dir : 'DESC';
         
-        $query = "SELECT p.*, m.nom, m.prenom, c.nom as communaute_nom 
-                  FROM " . $this->table . " p 
-                  LEFT JOIN membre m ON p.auteur_id = m.id 
-                  LEFT JOIN communaute c ON p.communaute_id = c.id 
+          $query = "SELECT p.*,
+                      COALESCE(NULLIF(u.first_name, ''), NULLIF(u.username, ''), 'Utilisateur') AS prenom,
+                      COALESCE(NULLIF(u.last_name, ''), '') AS nom,
+                      u.profile_picture_url AS profile_picture_url,
+                      COALESCE(
+                          NULLIF(u.username, ''),
+                          NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''),
+                          CONCAT('Utilisateur #', COALESCE(p.user_id, p.auteur_id))
+                      ) AS auteur_display_name,
+                      c.nom as communaute_nom
+                  FROM " . $this->table . " p
+                  LEFT JOIN communaute c ON p.communaute_id = c.id
+                  LEFT JOIN users u ON u.id = COALESCE(p.user_id, p.auteur_id)
                   ORDER BY p." . $order_by . " " . $order_dir;
         
         $stmt = $this->conn->prepare($query);
@@ -76,6 +95,73 @@ class Publication {
         return $publications;
     }
 
+    /**
+     * Lire les publications avec tri + filtres optionnels.
+     * - $communaute_id: filtre par communauté
+     * - $categorie: filtre par catégorie (type) de communauté
+     */
+    public function readOrderedFiltered($order_by = 'date_publication', $order_dir = 'DESC', $communaute_id = null, $categorie = null) {
+        $allowed_columns = ['date_publication', 'likes', 'commentaires'];
+        $allowed_directions = ['ASC', 'DESC'];
+
+        $order_by = in_array($order_by, $allowed_columns) ? $order_by : 'date_publication';
+        $order_dir = in_array($order_dir, $allowed_directions) ? $order_dir : 'DESC';
+
+        $communaute_id = $communaute_id !== null ? (int) $communaute_id : 0;
+        $categorie = $categorie !== null ? trim((string) $categorie) : '';
+
+        $where = [];
+        if ($communaute_id > 0) {
+            $where[] = 'p.communaute_id = :communaute_id';
+        }
+        if ($categorie !== '') {
+            $where[] = 'c.categorie = :categorie';
+        }
+        $whereSql = count($where) ? ('WHERE ' . implode(' AND ', $where)) : '';
+
+        $query = "SELECT p.*,
+                      COALESCE(NULLIF(u.first_name, ''), NULLIF(u.username, ''), 'Utilisateur') AS prenom,
+                      COALESCE(NULLIF(u.last_name, ''), '') AS nom,
+                      u.profile_picture_url AS profile_picture_url,
+                      COALESCE(
+                          NULLIF(u.username, ''),
+                          NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''),
+                          CONCAT('Utilisateur #', COALESCE(p.user_id, p.auteur_id))
+                      ) AS auteur_display_name,
+                      c.nom as communaute_nom,
+                      c.categorie as communaute_categorie
+                  FROM {$this->table} p
+                  LEFT JOIN communaute c ON p.communaute_id = c.id
+                  LEFT JOIN users u ON u.id = COALESCE(p.user_id, p.auteur_id)
+                  {$whereSql}
+                  ORDER BY p.{$order_by} {$order_dir}";
+
+        $stmt = $this->conn->prepare($query);
+        if ($communaute_id > 0) {
+            $stmt->bindValue(':communaute_id', $communaute_id, PDO::PARAM_INT);
+        }
+        if ($categorie !== '') {
+            $stmt->bindValue(':categorie', $categorie, PDO::PARAM_STR);
+        }
+        $stmt->execute();
+
+        $publications = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($publications as &$publication) {
+            if (!empty($publication['images'])) {
+                $images = json_decode($publication['images'], true);
+                $publication['images'] = is_array($images) ? $images : [];
+            } else {
+                $publication['images'] = [];
+            }
+            if (!isset($publication['date_modification'])) {
+                $publication['date_modification'] = null;
+            }
+        }
+
+        return $publications;
+    }
+
     // Lire les publications d'une communauté avec tri
     // Lire les publications d'une communauté avec tri
 public function readByCommunauteOrdered($communaute_id, $order_by = 'date_publication', $order_dir = 'DESC') {
@@ -85,12 +171,21 @@ public function readByCommunauteOrdered($communaute_id, $order_by = 'date_public
     $order_by = in_array($order_by, $allowed_columns) ? $order_by : 'date_publication';
     $order_dir = in_array($order_dir, $allowed_directions) ? $order_dir : 'DESC';
     
-    $query = "SELECT p.*, m.nom, m.prenom, c.nom as communaute_nom
-              FROM " . $this->table . " p 
-              LEFT JOIN membre m ON p.auteur_id = m.id 
-              LEFT JOIN communaute c ON p.communaute_id = c.id
-              WHERE p.communaute_id = :communaute_id 
-              ORDER BY p." . $order_by . " " . $order_dir;
+        $query = "SELECT p.*,
+                COALESCE(NULLIF(u.first_name, ''), NULLIF(u.username, ''), 'Utilisateur') AS prenom,
+                COALESCE(NULLIF(u.last_name, ''), '') AS nom,
+                u.profile_picture_url AS profile_picture_url,
+                COALESCE(
+                    NULLIF(u.username, ''),
+                    NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''),
+                    CONCAT('Utilisateur #', COALESCE(p.user_id, p.auteur_id))
+                ) AS auteur_display_name,
+                c.nom as communaute_nom
+            FROM " . $this->table . " p
+            LEFT JOIN communaute c ON p.communaute_id = c.id
+            LEFT JOIN users u ON u.id = COALESCE(p.user_id, p.auteur_id)
+            WHERE p.communaute_id = :communaute_id
+            ORDER BY p." . $order_by . " " . $order_dir;
     
     try {
         $stmt = $this->conn->prepare($query);
@@ -123,11 +218,20 @@ public function readByCommunauteOrdered($communaute_id, $order_by = 'date_public
 }
     // Lire une publication
     public function read_single() {
-        $query = "SELECT p.*, m.nom, m.prenom, c.nom as communaute_nom 
-                  FROM " . $this->table . " p 
-                  LEFT JOIN membre m ON p.auteur_id = m.id 
-                  LEFT JOIN communaute c ON p.communaute_id = c.id 
-                  WHERE p.id = ? LIMIT 0,1";
+         $query = "SELECT p.*,
+                    COALESCE(NULLIF(u.first_name, ''), NULLIF(u.username, ''), 'Utilisateur') AS prenom,
+                    COALESCE(NULLIF(u.last_name, ''), '') AS nom,
+                    u.profile_picture_url AS profile_picture_url,
+                    COALESCE(
+                        NULLIF(u.username, ''),
+                        NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''),
+                        CONCAT('Utilisateur #', COALESCE(p.user_id, p.auteur_id))
+                    ) AS auteur_display_name,
+                    c.nom as communaute_nom
+                FROM " . $this->table . " p
+                LEFT JOIN communaute c ON p.communaute_id = c.id
+                LEFT JOIN users u ON u.id = COALESCE(p.user_id, p.auteur_id)
+                WHERE p.id = ? LIMIT 0,1";
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(1, $this->id);
@@ -144,7 +248,8 @@ public function readByCommunauteOrdered($communaute_id, $order_by = 'date_public
             $this->date_modification = $row['date_modification'];
             $this->likes = $row['likes'];
             $this->commentaires = $row['commentaires'];
-            $this->auteur_nom = $row['prenom'] . ' ' . $row['nom'];
+            $this->auteur_display_name = $row['auteur_display_name'] ?? null;
+            $this->auteur_nom = $row['auteur_display_name'] ?? trim(($row['prenom'] ?? 'Utilisateur') . ' ' . ($row['nom'] ?? ''));
             $this->communaute_nom = $row['communaute_nom'];
             
             // Décoder les images
@@ -161,12 +266,21 @@ public function readByCommunauteOrdered($communaute_id, $order_by = 'date_public
 
     // Lire les publications par auteur
     public function read_by_auteur($auteur_id) {
-        $query = "SELECT p.*, m.nom, m.prenom, c.nom as communaute_nom 
-                  FROM " . $this->table . " p 
-                  LEFT JOIN membre m ON p.auteur_id = m.id 
-                  LEFT JOIN communaute c ON p.communaute_id = c.id 
-                  WHERE p.auteur_id = :auteur_id 
-                  ORDER BY p.date_publication DESC";
+         $query = "SELECT p.*,
+                    COALESCE(NULLIF(u.first_name, ''), NULLIF(u.username, ''), 'Utilisateur') AS prenom,
+                    COALESCE(NULLIF(u.last_name, ''), '') AS nom,
+                    u.profile_picture_url AS profile_picture_url,
+                    COALESCE(
+                        NULLIF(u.username, ''),
+                        NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''),
+                        CONCAT('Utilisateur #', COALESCE(p.user_id, p.auteur_id))
+                    ) AS auteur_display_name,
+                    c.nom as communaute_nom
+                FROM " . $this->table . " p
+                LEFT JOIN communaute c ON p.communaute_id = c.id
+                LEFT JOIN users u ON u.id = COALESCE(p.user_id, p.auteur_id)
+                WHERE p.auteur_id = :auteur_id
+                ORDER BY p.date_publication DESC";
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':auteur_id', $auteur_id);
@@ -188,12 +302,21 @@ public function readByCommunauteOrdered($communaute_id, $order_by = 'date_public
 
     // Lire les publications par communauté
     public function read_by_communaute($communaute_id) {
-        $query = "SELECT p.*, m.nom, m.prenom, c.nom as communaute_nom 
-                  FROM " . $this->table . " p 
-                  LEFT JOIN membre m ON p.auteur_id = m.id 
-                  LEFT JOIN communaute c ON p.communaute_id = c.id 
-                  WHERE p.communaute_id = :communaute_id 
-                  ORDER BY p.date_publication DESC";
+         $query = "SELECT p.*,
+                    COALESCE(NULLIF(u.first_name, ''), NULLIF(u.username, ''), 'Utilisateur') AS prenom,
+                    COALESCE(NULLIF(u.last_name, ''), '') AS nom,
+                    u.profile_picture_url AS profile_picture_url,
+                    COALESCE(
+                        NULLIF(u.username, ''),
+                        NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''),
+                        CONCAT('Utilisateur #', COALESCE(p.user_id, p.auteur_id))
+                    ) AS auteur_display_name,
+                    c.nom as communaute_nom
+                FROM " . $this->table . " p
+                LEFT JOIN communaute c ON p.communaute_id = c.id
+                LEFT JOIN users u ON u.id = COALESCE(p.user_id, p.auteur_id)
+                WHERE p.communaute_id = :communaute_id
+                ORDER BY p.date_publication DESC";
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':communaute_id', $communaute_id);
@@ -367,13 +490,21 @@ public function readByCommunauteOrdered($communaute_id, $order_by = 'date_public
 
     // Récupérer les dernières publications
     public function getLatest($limit = 5) {
-        $query = "SELECT p.id, p.contenu, p.date_publication, p.likes, p.commentaires,
-                         m.prenom, m.nom, c.nom AS communaute_nom
-                  FROM " . $this->table . " p
-                  LEFT JOIN membre m ON p.auteur_id = m.id
-                  LEFT JOIN communaute c ON p.communaute_id = c.id
-                  ORDER BY p.date_publication DESC
-                  LIMIT :limit";
+         $query = "SELECT p.id, p.contenu, p.date_publication, p.likes, p.commentaires,
+                    COALESCE(NULLIF(u.first_name, ''), NULLIF(u.username, ''), 'Utilisateur') AS prenom,
+                    COALESCE(NULLIF(u.last_name, ''), '') AS nom,
+                    u.profile_picture_url AS profile_picture_url,
+                    COALESCE(
+                        NULLIF(u.username, ''),
+                        NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''),
+                        CONCAT('Utilisateur #', COALESCE(p.user_id, p.auteur_id))
+                    ) AS auteur_display_name,
+                    c.nom AS communaute_nom
+                FROM " . $this->table . " p
+                LEFT JOIN communaute c ON p.communaute_id = c.id
+                LEFT JOIN users u ON u.id = COALESCE(p.user_id, p.auteur_id)
+                ORDER BY p.date_publication DESC
+                LIMIT :limit";
 
         $stmt = $this->conn->prepare($query);
         $stmt->bindValue(':limit', (int) $limit, PDO::PARAM_INT);

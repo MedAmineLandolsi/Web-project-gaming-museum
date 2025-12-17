@@ -1,0 +1,9 @@
+# Local secrets
+config.local.php
+
+# Local uploads / generated
+uploads/
+
+# OS / editor
+.DS_Store
+Thumbs.db
