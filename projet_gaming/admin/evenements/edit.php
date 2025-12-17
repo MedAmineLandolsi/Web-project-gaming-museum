@@ -1,0 +1,1145 @@
+<?php
+session_start(); // AJOUTER CETTE LIGNE AU DÉBUT
+
+// Vérifier si l'utilisateur est connecté et est admin
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'admin') {
+    header('Location: ../../login.php');
+    exit();
+}
+
+include_once '../../config/database.php';
+include_once '../../models/Evenement.php';
+include_once '../../controllers/EvenementController.php';
+include_once '../../models/Participation.php';
+include_once '../../controllers/ParticipationController.php';
+
+$database = new Database();
+$db = $database->getConnection();
+
+$evenementController = new EvenementController($db);
+
+$participationController = new ParticipationController($db);
+$participations = $participationController->index();
+$evenements = $evenementController->index();
+
+if(!isset($_GET['id'])) {
+    header("Location: ../evenements.php");
+    exit();
+}
+
+$evenement = $evenementController->show($_GET['id']);
+if(!$evenement) {
+    header("Location: ../evenements.php");
+    exit();
+}
+
+// Vérifier si l'utilisateur est l'organisateur de l'événement
+if (!$evenementController->canManage($_GET['id'], $_SESSION['user_id']) && $_SESSION['role'] != 'admin') {
+    header("Location: ../evenements.php");
+    exit();
+}
+
+$message = '';
+$message_type = '';
+
+if($_POST) {
+    if($evenementController->update($_GET['id'], $_POST)) {
+        $message = '🎉 ÉVÉNEMENT MODIFIÉ AVEC SUCCÈS !';
+        $message_type = 'success';
+        // Recharger les données
+        $evenement = $evenementController->show($_GET['id']);
+    } else {
+        $message = '❌ ERREUR LORS DE LA MODIFICATION.';
+        $message_type = 'error';
+    }
+}
+?>
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modifier l'Événement - Administration</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary-green: #00FF41;
+            --secondary-purple: #BD00FF;
+            --accent-pink: #FF006E;
+            --warning-orange: #FF9500;
+            --dark-bg: #0a0a0a;
+            --darker-bg: #050505;
+            --card-bg: #1a1a1a;
+            --sidebar-bg: #0d0d0d;
+            --text-white: #ffffff;
+            --text-gray: #888888;
+            --text-light-gray: #aaaaaa;
+            --border-color: #333333;
+            --success-green: #00FF41;
+            --danger-red: #FF0055;
+        }
+
+        body {
+            font-family: 'Press Start 2P', cursive;
+            background-color: var(--dark-bg);
+            background-image: 
+                repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 2px,
+                    rgba(0, 255, 65, 0.02) 2px,
+                    rgba(0, 255, 65, 0.02) 4px
+                );
+            color: var(--text-white);
+            line-height: 1.6;
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            margin-left: 0;
+            padding: 2rem;
+            margin-top: 80px;
+        }
+
+        /* Top Bar */
+        .top-bar {
+            background: linear-gradient(135deg, var(--sidebar-bg), var(--darker-bg));
+            border: 2px solid var(--warning-orange);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 5px 30px rgba(255, 149, 0, 0.2);
+        }
+
+        .top-bar-left {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .page-title {
+            font-size: 1.2rem;
+            color: var(--warning-orange);
+            text-shadow: 0 0 10px var(--warning-orange);
+        }
+
+        .top-bar-right {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .btn-view-site {
+            padding: 0.8rem 1.5rem;
+            background: linear-gradient(135deg, var(--warning-orange), #cc7700);
+            color: var(--darker-bg);
+            border: none;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.6rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+            text-decoration: none;
+        }
+
+        .btn-view-site:hover {
+            box-shadow: 0 0 30px rgba(255, 149, 0, 0.6);
+            transform: translateY(-2px);
+        }
+
+        /* Edit Container */
+        .edit-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem 0;
+        }
+
+        .page-header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding: 2rem;
+            background: linear-gradient(135deg, var(--card-bg), var(--darker-bg));
+            border: 2px solid var(--warning-orange);
+            box-shadow: 0 5px 30px rgba(255, 149, 0, 0.2);
+        }
+
+        .page-header h1 {
+            font-size: 1.5rem;
+            color: var(--warning-orange);
+            text-shadow: 0 0 10px var(--warning-orange);
+            margin-bottom: 1rem;
+        }
+
+        .page-subtitle {
+            font-size: 0.7rem;
+            color: var(--text-gray);
+            font-family: 'VT323', monospace;
+            font-size: 1.2rem;
+        }
+
+        .event-id {
+            color: var(--primary-green);
+            font-family: 'VT323', monospace;
+            font-size: 1.3rem;
+            margin-top: 0.5rem;
+        }
+
+        /* Form Container */
+        .form-container {
+            background: linear-gradient(135deg, var(--card-bg), var(--darker-bg));
+            border: 2px solid var(--warning-orange);
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(255, 149, 0, 0.1);
+        }
+
+        /* Form Elements */
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.8rem;
+            color: var(--warning-orange);
+            font-size: 0.6rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .required-field::after {
+            content: " *";
+            color: var(--accent-pink);
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 1rem;
+            background: var(--darker-bg);
+            border: 2px solid var(--border-color);
+            color: var(--text-white);
+            font-family: 'VT323', monospace;
+            font-size: 1.2rem;
+            transition: all 0.3s;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--warning-orange);
+            box-shadow: 0 0 15px rgba(255, 149, 0, 0.3);
+            animation: glow 2s infinite;
+        }
+
+        .form-control.error {
+            border-color: var(--danger-red);
+            box-shadow: 0 0 15px rgba(255, 0, 85, 0.3);
+        }
+
+        textarea.form-control {
+            resize: vertical;
+            min-height: 120px;
+            font-family: 'VT323', monospace;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        /* AJOUTER : Styles pour l'image */
+        .image-preview {
+            margin-top: 1rem;
+            text-align: center;
+        }
+
+        .image-preview img {
+            max-width: 200px;
+            max-height: 150px;
+            border: 2px solid var(--primary-green);
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.3);
+        }
+
+        /* Buttons */
+        .form-actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .btn {
+            padding: 1rem 2rem;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.6rem;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+            flex: 1;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--warning-orange), #cc7700);
+            color: var(--darker-bg);
+            font-weight: bold;
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 0 30px rgba(255, 149, 0, 0.6);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            border: 2px solid var(--secondary-purple);
+            color: var(--secondary-purple);
+        }
+
+        .btn-secondary:hover {
+            background: var(--secondary-purple);
+            color: var(--darker-bg);
+            box-shadow: 0 0 30px rgba(189, 0, 255, 0.5);
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        /* Messages */
+        .message-alert {
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            text-align: center;
+            border: 2px solid;
+            font-size: 0.7rem;
+        }
+
+        .message-success {
+            background: rgba(0, 255, 65, 0.1);
+            border-color: var(--success-green);
+            color: var(--success-green);
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.2);
+        }
+
+        .message-error {
+            background: rgba(255, 0, 85, 0.1);
+            border-color: var(--danger-red);
+            color: var(--danger-red);
+            box-shadow: 0 0 20px rgba(255, 0, 85, 0.2);
+        }
+
+        /* Error Messages */
+        .error-message {
+            display: none;
+            color: var(--danger-red);
+            font-size: 0.5rem;
+            margin-top: 0.5rem;
+            font-family: 'VT323', monospace;
+            font-size: 0.9rem;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        /* Form Hints */
+        .form-hint {
+            color: var(--text-gray);
+            font-size: 0.5rem;
+            margin-top: 0.5rem;
+            font-family: 'VT323', monospace;
+            font-size: 0.9rem;
+        }
+
+        /* Event Info */
+        .event-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            background: rgba(255, 149, 0, 0.05);
+            border: 1px solid var(--warning-orange);
+        }
+
+        .info-item {
+            text-align: center;
+        }
+
+        .info-label {
+            font-size: 0.5rem;
+            color: var(--text-gray);
+            margin-bottom: 0.5rem;
+        }
+
+        .info-value {
+            font-size: 0.7rem;
+            color: var(--warning-orange);
+            font-family: 'VT323', monospace;
+            font-size: 1.1rem;
+        }
+
+        /* AJOUTER : Info organisateur */
+        .organizer-info {
+            background: rgba(0, 255, 65, 0.1);
+            border: 1px solid var(--primary-green);
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            border-radius: 0;
+            font-size: 0.6rem;
+            text-align: center;
+            color: var(--primary-green);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1024px) {
+            .main-content {
+                padding: 1rem;
+            }
+
+            .edit-container {
+                padding: 1rem 0;
+            }
+
+            .form-container {
+                padding: 1.5rem;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+
+            .form-actions {
+                flex-direction: column;
+            }
+
+            .page-header h1 {
+                font-size: 1.2rem;
+            }
+
+            .page-subtitle {
+                font-size: 0.6rem;
+            }
+
+            .form-control {
+                padding: 0.8rem;
+                font-size: 1rem;
+            }
+
+            .btn {
+                padding: 0.8rem 1.5rem;
+                font-size: 0.5rem;
+            }
+
+            .event-info {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .main-content {
+                padding: 0.5rem;
+                margin-top: 60px;
+            }
+
+            .btn-view-site {
+                display: none;
+            }
+
+            .page-header {
+                padding: 1.5rem 1rem;
+            }
+
+            .form-container {
+                padding: 1rem;
+            }
+        }
+
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--darker-bg);
+            border-left: 1px solid var(--border-color);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, var(--warning-orange), var(--secondary-purple));
+            border-radius: 5px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(180deg, #cc7700, #9900cc);
+        }
+
+        /* Animation for form elements */
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 0 5px rgba(255, 149, 0, 0.3); }
+            50% { box-shadow: 0 0 20px rgba(255, 149, 0, 0.6); }
+        }
+    </style>
+    <link rel="stylesheet" href="/projet-web/ProjetWeb/assets/css/admin-style.css">
+    <style>
+        .form-wrapper {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        @media (max-width: 900px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--primary-green);
+            font-size: 0.75rem;
+            letter-spacing: 1px;
+        }
+
+        .required-field::after {
+            content: " *";
+            color: var(--accent-pink);
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.9rem 1rem;
+            background: var(--darker-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-white);
+            font-family: 'VT323', monospace;
+            font-size: 1.2rem;
+            border-radius: 10px;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary-green);
+            box-shadow: 0 0 0 3px rgba(0, 255, 65, 0.15);
+        }
+
+        textarea.form-control {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        .error-message {
+            display: block;
+            min-height: 1.2rem;
+            margin-top: 0.35rem;
+            color: var(--danger-red);
+            font-family: 'VT323', monospace;
+            font-size: 1.05rem;
+        }
+
+        .form-hint {
+            margin-top: 0.25rem;
+            color: var(--text-gray);
+            font-family: 'VT323', monospace;
+            font-size: 1.0rem;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-top: 1.25rem;
+        }
+
+        .message-alert {
+            padding: 1rem 1.25rem;
+            margin-bottom: 1rem;
+            border-radius: 12px;
+            font-family: 'VT323', monospace;
+            font-size: 1.2rem;
+        }
+
+        .message-success {
+            background: rgba(0, 255, 65, 0.12);
+            border: 1px solid var(--primary-green);
+            color: var(--primary-green);
+        }
+
+        .message-error {
+            background: rgba(255, 0, 85, 0.12);
+            border: 1px solid var(--danger-red);
+            color: var(--danger-red);
+        }
+
+        .image-preview img {
+            max-width: 240px;
+            max-height: 180px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+        }
+    </style>
+</head>
+<body>
+    <?php $participationsCount = $evenement->countParticipations(); ?>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="admin-logo">
+                <div class="logo-box">⚙</div>
+                <div class="admin-title">
+                    <h2>SYSTÈME ADMIN</h2>
+                    <div class="admin-badge">PANEL DE CONTROLE</div>
+                </div>
+            </div>
+        </div>
+
+        <nav class="sidebar-nav">
+            <ul class="nav-list">
+                <li class="nav-item">
+                    <a href="../index.php">
+                        <span class="nav-icon">📊</span>
+                        <span class="nav-text">DASHBOARD</span>
+                        <span class="nav-count"><?php echo (int)count($evenements); ?></span>
+                    </a>
+                </li>
+                <li class="nav-item active">
+                    <a href="../evenements.php">
+                        <span class="nav-icon">📅</span>
+                        <span class="nav-text">ÉVÉNEMENTS</span>
+                        <span class="nav-count"><?php echo (int)count($evenements); ?></span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="../participations.php">
+                        <span class="nav-icon">🧾</span>
+                        <span class="nav-text">PARTICIPATIONS</span>
+                        <span class="nav-count"><?php echo (int)count($participations); ?></span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="../../index.php" style="color: #00FF41; font-weight: bold;">
+                        <span class="nav-icon">🌐</span>
+                        <span class="nav-text">FRONT OFFICE</span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="admin-profile">
+                <div class="admin-avatar">AD</div>
+                <div class="admin-info">
+                    <div class="admin-name">ADMINISTRATEUR</div>
+                    <div class="admin-role">GAMING EVENTS</div>
+                </div>
+            </div>
+            <a href="../../index.php" class="btn-logout" style="background: #00FF41; color: #000; border-color: #00FF41;">
+                <span>←</span> RETOUR AU SITE
+            </a>
+            <a class="btn-logout" href="../../logout.php" onclick="return confirm('Déconnexion ?')">
+                <span>→</span> DÉCONNEXION
+            </a>
+        </div>
+    </aside>
+
+    <main class="main-content" id="dashboard">
+        <div class="top-bar">
+            <div class="top-bar-left">
+                <button class="menu-toggle" id="menuToggle" type="button" aria-label="Menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <h1 class="page-title">Modifier événement #<?php echo htmlspecialchars((string)$_GET['id']); ?></h1>
+            </div>
+            <div class="top-bar-right">
+                <a href="../../index.php" class="btn-view-site">🌐 VOIR LE SITE</a>
+            </div>
+        </div>
+
+        <div class="stats-overview">
+            <div class="stat-card stat-secondary">
+                <div class="stat-icon">🗓️</div>
+                <div class="stat-content">
+                    <div class="stat-label">DATE DE CRÉATION</div>
+                    <div class="stat-value"><?php echo isset($evenement->created_at) ? date('d/m/Y', strtotime((string)$evenement->created_at)) : 'N/A'; ?></div>
+                    <div class="stat-change">Créé</div>
+                </div>
+            </div>
+            <div class="stat-card stat-accent">
+                <div class="stat-icon">📝</div>
+                <div class="stat-content">
+                    <div class="stat-label">DERNIÈRE MODIF</div>
+                    <div class="stat-value"><?php echo isset($evenement->updated_at) ? date('d/m/Y', strtotime((string)$evenement->updated_at)) : 'N/A'; ?></div>
+                    <div class="stat-change">MAJ</div>
+                </div>
+            </div>
+            <div class="stat-card stat-primary">
+                <div class="stat-icon">🎟️</div>
+                <div class="stat-content">
+                    <div class="stat-label">PLACES RESTANTES</div>
+                    <div class="stat-value"><?php echo (int)($evenement->places_max - $participationsCount); ?> / <?php echo (int)$evenement->places_max; ?></div>
+                    <div class="stat-change positive">Disponibles</div>
+                </div>
+            </div>
+            <div class="stat-card stat-warning">
+                <div class="stat-icon">👥</div>
+                <div class="stat-content">
+                    <div class="stat-label">INSCRITS</div>
+                    <div class="stat-value"><?php echo (int)$participationsCount; ?></div>
+                    <div class="stat-change"><?php echo (int)$participationsCount; ?> participants</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-card">
+            <div class="card-header">
+                <h3 class="card-title">✏️ Modification d'événement</h3>
+                <a class="btn-view-all-small" href="../evenements.php">← Retour</a>
+            </div>
+            <div class="card-content">
+                <div class="form-wrapper">
+                    <?php if (!empty($message)): ?>
+                        <div class="message-alert <?php echo $message_type == 'success' ? 'message-success' : 'message-error'; ?>">
+                            <strong><?php echo htmlspecialchars($message); ?></strong>
+                        </div>
+                    <?php endif; ?>
+
+                    <div class="organizer-info">
+                        👤 Cet événement est organisé par : <strong><?php echo htmlspecialchars((string)($evenement->organisateur_nom ?? 'Admin')); ?></strong>
+                        <div class="form-hint">Vous pouvez modifier cet événement car <?php echo ($_SESSION['role'] == 'admin') ? 'vous êtes administrateur' : 'vous en êtes l\'organisateur'; ?>.</div>
+                    </div>
+
+                    <form method="POST" id="editEventForm" enctype="multipart/form-data" novalidate>
+                        <div class="form-group">
+                            <label for="nom" class="required-field">NOM DE L'ÉVÉNEMENT</label>
+                            <input type="text" id="nom" name="nom" class="form-control" value="<?php echo htmlspecialchars((string)$evenement->nom); ?>" required>
+                            <span class="error-message" id="nom_error"></span>
+                            <div class="form-hint">2 à 100 caractères</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="description">DESCRIPTION</label>
+                            <textarea id="description" name="description" class="form-control" rows="4"><?php echo htmlspecialchars((string)$evenement->description); ?></textarea>
+                            <span class="error-message" id="description_error"></span>
+                            <div class="form-hint">Maximum 1000 caractères</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="jeu" class="required-field">JEU</label>
+                            <input type="text" id="jeu" name="jeu" class="form-control" value="<?php echo htmlspecialchars((string)$evenement->jeu); ?>" required>
+                            <span class="error-message" id="jeu_error"></span>
+                        </div>
+
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="date_debut" class="required-field">DATE ET HEURE DE DÉBUT</label>
+                                <input type="datetime-local" id="date_debut" name="date_debut" class="form-control" value="<?php echo date('Y-m-d\TH:i', strtotime((string)$evenement->date_debut)); ?>" required>
+                                <span class="error-message" id="date_debut_error"></span>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="date_fin" class="required-field">DATE ET HEURE DE FIN</label>
+                                <input type="datetime-local" id="date_fin" name="date_fin" class="form-control" value="<?php echo date('Y-m-d\TH:i', strtotime((string)$evenement->date_fin)); ?>" required>
+                                <span class="error-message" id="date_fin_error"></span>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="lieu" class="required-field">LIEU</label>
+                            <input type="text" id="lieu" name="lieu" class="form-control" value="<?php echo htmlspecialchars((string)$evenement->lieu); ?>" required>
+                            <span class="error-message" id="lieu_error"></span>
+                        </div>
+
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="places_max" class="required-field">NOMBRE DE PLACES MAXIMUM</label>
+                                <input type="number" id="places_max" name="places_max" class="form-control" value="<?php echo (int)$evenement->places_max; ?>" min="1" max="1000" required>
+                                <span class="error-message" id="places_max_error"></span>
+                                <div class="form-hint">1 à 1000 places</div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="prix">PRIX (€)</label>
+                                <input type="number" id="prix" name="prix" class="form-control" value="<?php echo htmlspecialchars((string)$evenement->prix); ?>" step="0.01" min="0" max="10000">
+                                <span class="error-message" id="prix_error"></span>
+                                <div class="form-hint">Gratuit si 0€</div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="image">IMAGE DE L'ÉVÉNEMENT</label>
+                            <?php if (!empty($evenement->image)): ?>
+                                <div class="image-preview" id="currentImage">
+                                    <img src="../../uploads/<?php echo htmlspecialchars((string)$evenement->image); ?>" alt="Image actuelle">
+                                    <div class="form-hint">Image actuelle</div>
+                                </div>
+                            <?php endif; ?>
+                            <input type="file" id="image" name="image" class="form-control" accept="image/*">
+                            <div class="form-hint">Taille max: 2MB, Formats: JPG, PNG, GIF. Laissez vide pour conserver l'image actuelle.</div>
+                            <div class="image-preview" id="imagePreview"></div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn-view-site" id="submitBtn">MODIFIER L'ÉVÉNEMENT</button>
+                            <a href="../evenements.php" class="btn-view-all-small">ANNULER</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+    class EventFormValidator {
+        constructor() {
+            this.form = document.getElementById('editEventForm');
+            if (!this.form) return;
+
+            this.fields = {
+                nom: {
+                    element: document.getElementById('nom'),
+                    error: document.getElementById('nom_error'),
+                    validate: (value) => this.validateRequired(value, 'Le nom de l\'événement est obligatoire')
+                },
+                jeu: {
+                    element: document.getElementById('jeu'),
+                    error: document.getElementById('jeu_error'),
+                    validate: (value) => this.validateRequired(value, 'Le nom du jeu est obligatoire')
+                },
+                date_debut: {
+                    element: document.getElementById('date_debut'),
+                    error: document.getElementById('date_debut_error'),
+                    validate: (value) => this.validateDateDebut(value)
+                },
+                date_fin: {
+                    element: document.getElementById('date_fin'),
+                    error: document.getElementById('date_fin_error'),
+                    validate: (value) => this.validateDateFin(value)
+                },
+                lieu: {
+                    element: document.getElementById('lieu'),
+                    error: document.getElementById('lieu_error'),
+                    validate: (value) => this.validateRequired(value, 'Le lieu est obligatoire')
+                },
+                places_max: {
+                    element: document.getElementById('places_max'),
+                    error: document.getElementById('places_max_error'),
+                    validate: (value) => this.validatePlacesMax(value)
+                },
+                prix: {
+                    element: document.getElementById('prix'),
+                    error: document.getElementById('prix_error'),
+                    validate: (value) => this.validatePrix(value)
+                },
+                description: {
+                    element: document.getElementById('description'),
+                    error: document.getElementById('description_error'),
+                    validate: (value) => this.validateDescription(value)
+                }
+            };
+
+            this.imageInput = document.getElementById('image');
+            this.imagePreview = document.getElementById('imagePreview');
+            this.submitBtn = document.getElementById('submitBtn');
+            this.init();
+        }
+
+        init() {
+            // Validation en temps réel
+            Object.values(this.fields).forEach(field => {
+                if (field.element) {
+                    field.element.addEventListener('blur', () => this.validateField(field));
+                    field.element.addEventListener('input', () => this.clearError(field));
+                    
+                    // Validation spéciale pour les dates
+                    if (field.element.id === 'date_debut' || field.element.id === 'date_fin') {
+                        field.element.addEventListener('change', () => this.validateDates());
+                    }
+                }
+            });
+
+            // Gestion de l'aperçu de la nouvelle image
+            if (this.imageInput) {
+                this.imageInput.addEventListener('change', () => this.previewImage());
+            }
+
+            // Validation à la soumission
+            this.form.addEventListener('submit', (e) => this.handleSubmit(e));
+        }
+
+        previewImage() {
+            const file = this.imageInput.files[0];
+            if (file) {
+                // Vérifier la taille du fichier (max 2MB)
+                if (file.size > 2 * 1024 * 1024) {
+                    alert('❌ L\'image est trop volumineuse (max 2MB)');
+                    this.imageInput.value = '';
+                    this.imagePreview.innerHTML = '';
+                    return;
+                }
+
+                // Vérifier le type de fichier
+                const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+                if (!validTypes.includes(file.type)) {
+                    alert('❌ Format d\'image non supporté (JPG, PNG, GIF uniquement)');
+                    this.imageInput.value = '';
+                    this.imagePreview.innerHTML = '';
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    // Masquer l'image actuelle
+                    const currentImage = document.getElementById('currentImage');
+                    if (currentImage) {
+                        currentImage.style.display = 'none';
+                    }
+                    
+                    // Afficher la nouvelle image
+                    this.imagePreview.innerHTML = `
+                        <img src="${e.target.result}" alt="Nouvelle image">
+                        <p style="margin-top: 0.5rem; font-size: 0.6rem; color: var(--primary-green);">
+                            ✅ Nouvelle image sélectionnée: ${file.name}
+                        </p>
+                    `;
+                };
+                reader.readAsDataURL(file);
+            } else {
+                // Si aucun fichier n'est sélectionné, réafficher l'image actuelle
+                const currentImage = document.getElementById('currentImage');
+                if (currentImage) {
+                    currentImage.style.display = 'block';
+                }
+                this.imagePreview.innerHTML = '';
+            }
+        }
+
+        validateRequired(value, message) {
+            value = value.trim();
+            if (!value) {
+                return message;
+            }
+            if (value.length < 2) {
+                return 'Ce champ doit contenir au moins 2 caractères';
+            }
+            if (value.length > 100) {
+                return 'Ce champ ne peut pas dépasser 100 caractères';
+            }
+            return null;
+        }
+
+        validateDateDebut(value) {
+            if (!value) {
+                return 'La date de début est obligatoire';
+            }
+            
+            // Pour l'édition, on permet les dates passées (événement déjà créé)
+            return null;
+        }
+
+        validateDateFin(value) {
+            if (!value) {
+                return 'La date de fin est obligatoire';
+            }
+            
+            const dateDebut = document.getElementById('date_debut').value;
+            if (dateDebut) {
+                const debut = new Date(dateDebut);
+                const fin = new Date(value);
+                
+                if (fin <= debut) {
+                    return 'La date de fin doit être après la date de début';
+                }
+                
+                // Vérifier que l'événement dure au moins 30 minutes
+                const duration = fin.getTime() - debut.getTime();
+                const minDuration = 30 * 60 * 1000; // 30 minutes en millisecondes
+                
+                if (duration < minDuration) {
+                    return 'L\'événement doit durer au moins 30 minutes';
+                }
+                
+                // Vérifier que l'événement ne dure pas plus de 7 jours
+                const maxDuration = 7 * 24 * 60 * 60 * 1000; // 7 jours en millisecondes
+                if (duration > maxDuration) {
+                    return 'L\'événement ne peut pas durer plus de 7 jours';
+                }
+            }
+            
+            return null;
+        }
+
+        validateDates() {
+            // Valider les deux dates ensemble
+            this.validateField(this.fields.date_debut);
+            this.validateField(this.fields.date_fin);
+        }
+
+        validatePlacesMax(value) {
+            if (!value) {
+                return 'Le nombre de places est obligatoire';
+            }
+            
+            const places = parseInt(value);
+            if (isNaN(places) || places < 1) {
+                return 'Le nombre de places doit être au moins 1';
+            }
+            
+            // Vérifier qu'on ne réduit pas les places en dessous du nombre d'inscrits
+            const currentPlaces = <?php echo $evenement->places_max; ?>;
+            const inscriptions = <?php echo $participationsCount; ?>;
+            if (places < inscriptions) {
+                return `Impossible : ${inscriptions} personnes sont déjà inscrites`;
+            }
+            
+            if (places > 1000) {
+                return 'Le nombre de places ne peut pas dépasser 1000';
+            }
+            
+            return null;
+        }
+
+        validatePrix(value) {
+            if (value) {
+                const prix = parseFloat(value);
+                if (isNaN(prix) || prix < 0) {
+                    return 'Le prix doit être un nombre positif';
+                }
+                
+                if (prix > 10000) {
+                    return 'Le prix ne peut pas dépasser 10 000€';
+                }
+                
+                // Vérifier le format avec 2 décimales maximum
+                if (!/^\d+(\.\d{1,2})?$/.test(value)) {
+                    return 'Le prix doit avoir au maximum 2 décimales';
+                }
+            }
+            return null;
+        }
+
+        validateDescription(value) {
+            value = value.trim();
+            if (value && value.length > 1000) {
+                return 'La description ne peut pas dépasser 1000 caractères';
+            }
+            return null;
+        }
+
+        validateField(field) {
+            const value = field.element.value;
+            const error = field.validate(value);
+            
+            if (error) {
+                this.showError(field, error);
+                return false;
+            } else {
+                this.clearError(field);
+                return true;
+            }
+        }
+
+        showError(field, message) {
+            field.element.classList.add('error');
+            field.error.textContent = message;
+            field.error.classList.add('show');
+        }
+
+        clearError(field) {
+            field.element.classList.remove('error');
+            field.error.textContent = '';
+            field.error.classList.remove('show');
+        }
+
+        validateAll() {
+            let isValid = true;
+            
+            // Valider tous les champs
+            Object.values(this.fields).forEach(field => {
+                if (!this.validateField(field)) {
+                    isValid = false;
+                }
+            });
+
+            return isValid;
+        }
+
+        handleSubmit(e) {
+            e.preventDefault();
+            
+            if (this.validateAll()) {
+                // Désactiver le bouton pour éviter les doubles soumissions
+                if (this.submitBtn) {
+                    this.submitBtn.disabled = true;
+                    this.submitBtn.textContent = 'MODIFICATION EN COURS...';
+                }
+                
+                // Soumettre le formulaire
+                this.form.submit();
+            } else {
+                // Faire défiler jusqu'à la première erreur
+                const firstError = document.querySelector('.error');
+                if (firstError) {
+                    firstError.scrollIntoView({ 
+                        behavior: 'smooth', 
+                        block: 'center' 
+                    });
+                }
+                
+                // Message d'erreur stylisé
+                const errorMessage = document.createElement('div');
+                errorMessage.className = 'message-alert message-error';
+                errorMessage.innerHTML = '<strong>Veuillez corriger les erreurs dans le formulaire avant de soumettre.</strong>';
+                errorMessage.style.marginTop = '1rem';
+                
+                // Ajouter le message d'erreur
+                const existingAlert = this.form.querySelector('.message-alert');
+                if (existingAlert) {
+                    existingAlert.remove();
+                }
+                this.form.prepend(errorMessage);
+            }
+        }
+    }
+
+    // Initialiser la validation lorsque le DOM est chargé
+    document.addEventListener('DOMContentLoaded', () => {
+        new EventFormValidator();
+    });
+    </script>
+
+    <?php include_once '../views/back/footer.php'; ?>
+</body>
+</html>
