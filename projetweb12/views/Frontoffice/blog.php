@@ -1,0 +1,960 @@
+<?php
+session_start();
+include_once '../../config/database.php';
+include_once '../../models/Article.php';
+
+$database = new Database();
+$db = $database->getConnection();
+
+$articleModel = new Article($db);
+
+// Configuration de la pagination et du filtre
+$articles_par_page = 4;
+$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$categorie_filtre = isset($_GET['categorie']) ? $_GET['categorie'] : '';
+$offset = ($page - 1) * $articles_par_page;
+
+// Récupérer le nombre total d'articles (avec ou sans filtre)
+if ($categorie_filtre) {
+    $total_articles = $articleModel->compterPubliesParCategorie($categorie_filtre);
+    $articles = $articleModel->lirePubliesParCategorieAvecPagination($categorie_filtre, $articles_par_page, $offset)->fetchAll(PDO::FETCH_ASSOC);
+} else {
+    $total_articles = $articleModel->compterPublies();
+    $articles = $articleModel->lirePubliesAvecPagination($articles_par_page, $offset)->fetchAll(PDO::FETCH_ASSOC);
+}
+
+$total_pages = ceil($total_articles / $articles_par_page);
+
+function getCategoryLabel($category) {
+    $categories = [
+        'review' => 'TEST & REVIEW',
+        'news' => 'ACTUALITÉ',
+        'tutorial' => 'TUTORIEL',
+        'trends' => 'TENDANCES'
+    ];
+    return $categories[$category] ?? $category;
+}
+
+function getCategoryIcon($category) {
+    $icons = [
+        'review' => '🎮',
+        'news' => '📰',
+        'tutorial' => '📚',
+        'trends' => '📈'
+    ];
+    return $icons[$category] ?? '📝';
+}
+
+// Fonction pour générer l'URL avec paramètres
+function generatePageUrl($page, $categorie = '') {
+    $params = [];
+    if ($page > 1) $params['page'] = $page;
+    if ($categorie) $params['categorie'] = $categorie;
+    return 'blog.php' . (count($params) ? '?' . http_build_query($params) : '');
+}
+?>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?php echo $categorie_filtre ? getCategoryLabel($categorie_filtre) . ' - ' : ''; ?>TOUS LES ARTICLES - BLOG GAMING</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-green: #00FF41;
+            --secondary-purple: #BD00FF;
+            --accent-pink: #FF006E;
+            --dark-bg: #0a0a0a;
+            --darker-bg: #050505;
+            --card-bg: #1a1a1a;
+            --text-white: #ffffff;
+            --text-gray: #888888;
+            --text-light-gray: #aaaaaa;
+            --border-color: #333333;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Press Start 2P', cursive;
+            background-color: var(--dark-bg);
+            background-image: 
+                repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 2px,
+                    rgba(0, 255, 65, 0.02) 2px,
+                    rgba(0, 255, 65, 0.02) 4px
+                );
+            color: var(--text-white);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(180deg, var(--darker-bg) 0%, rgba(10, 10, 10, 0.95) 100%);
+            border-bottom: 2px solid var(--primary-green);
+            padding: 1.2rem 0;
+            position: fixed;
+            width: 100%;
+            top: 0;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 5px 30px rgba(0, 255, 65, 0.2);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        .nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 2rem;
+        }
+
+        .logo {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--primary-green);
+            text-shadow: 
+                0 0 10px var(--primary-green),
+                0 0 20px var(--primary-green),
+                0 0 30px var(--primary-green);
+            letter-spacing: 2px;
+            white-space: nowrap;
+        }
+
+        /* Navigation Déroulante - TOUJOURS VISIBLE */
+        .nav-dropdown-container {
+            flex: 1;
+            max-width: 300px;
+            position: relative;
+        }
+
+        .nav-dropdown {
+            width: 100%;
+            padding: 12px 16px;
+            font-size: 0.8rem;
+            font-family: 'Press Start 2P', cursive;
+            background: var(--card-bg);
+            color: var(--primary-green);
+            border: 2px solid var(--primary-green);
+            border-radius: 0;
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%2300FF41' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 14px;
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.3);
+            transition: all 0.3s;
+        }
+
+        .nav-dropdown option {
+            background: var(--darker-bg);
+            color: var(--text-white);
+            padding: 12px;
+            font-family: 'VT323', monospace;
+            font-size: 1.1rem;
+        }
+
+        .nav-dropdown:focus {
+            outline: none;
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.5);
+            border-color: var(--secondary-purple);
+        }
+
+        .nav-dropdown:hover {
+            border-color: var(--secondary-purple);
+            transform: translateY(-1px);
+        }
+
+        /* Blog Header */
+        .blog-header {
+            margin-top: 120px;
+            text-align: center;
+            padding: 3rem 0 1rem;
+        }
+
+        .blog-title {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: var(--primary-green);
+            text-shadow: 
+                0 0 10px var(--primary-green),
+                0 0 20px var(--primary-green),
+                0 0 40px var(--primary-green);
+            margin-bottom: 1.5rem;
+            line-height: 1.1;
+            animation: glitch 5s infinite;
+        }
+
+        @keyframes glitch {
+            0%, 90%, 100% { 
+                transform: translate(0);
+                text-shadow: 
+                    0 0 10px var(--primary-green),
+                    0 0 20px var(--primary-green);
+            }
+            92% { 
+                transform: translate(-3px, 3px);
+                text-shadow: 
+                    3px -3px 0 var(--secondary-purple),
+                    -3px 3px 0 var(--accent-pink);
+            }
+            94% { 
+                transform: translate(3px, -3px);
+                text-shadow: 
+                    -3px 3px 0 var(--secondary-purple),
+                    3px -3px 0 var(--accent-pink);
+            }
+        }
+
+        .blog-subtitle {
+            color: var(--secondary-purple);
+            font-size: 1.5rem;
+            font-weight: 500;
+            font-family: 'VT323', monospace;
+            margin-bottom: 2rem;
+        }
+
+        /* Filtres par catégorie */
+        .category-filters {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 3rem;
+            padding: 1rem;
+        }
+
+        .category-filter {
+            background: var(--card-bg);
+            color: var(--text-white);
+            padding: 0.8rem 1.5rem;
+            border-radius: 0;
+            border: 2px solid var(--border-color);
+            text-decoration: none;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.6rem;
+            transition: all 0.3s;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .category-filter:hover {
+            border-color: var(--primary-green);
+            background: rgba(0, 255, 65, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .category-filter.active {
+            background: linear-gradient(135deg, var(--primary-green), #00cc33);
+            color: var(--darker-bg);
+            border-color: var(--primary-green);
+            box-shadow: 0 4px 12px rgba(0, 255, 65, 0.3);
+        }
+
+        .filter-all {
+            background: linear-gradient(135deg, var(--secondary-purple), var(--accent-pink));
+            color: var(--text-white);
+        }
+
+        .filter-all.active {
+            background: linear-gradient(135deg, var(--accent-pink), var(--secondary-purple));
+        }
+
+        /* Articles Grid */
+        .articles-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+            gap: 2.5rem;
+            padding: 2rem 0 4rem;
+        }
+
+        .article-card {
+            background: var(--card-bg);
+            border-radius: 0;
+            overflow: hidden;
+            transition: all 0.4s;
+            border: 2px solid var(--border-color);
+            backdrop-filter: blur(20px);
+        }
+
+        .article-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 16px 40px rgba(0, 255, 65, 0.4);
+            border-color: var(--primary-green);
+        }
+
+        .article-image {
+            height: 220px;
+            background: linear-gradient(135deg, var(--darker-bg), var(--card-bg));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 4rem;
+            position: relative;
+            overflow: hidden;
+            border-bottom: 2px solid var(--primary-green);
+        }
+
+        .article-content {
+            padding: 2rem;
+        }
+
+        .article-category {
+            background: linear-gradient(135deg, var(--primary-green), #00cc33);
+            color: var(--darker-bg);
+            padding: 0.5rem 1.25rem;
+            border-radius: 0;
+            font-size: 0.6rem;
+            font-weight: 700;
+            display: inline-block;
+            margin-bottom: 1.25rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-family: 'Press Start 2P', cursive;
+            box-shadow: 0 4px 12px rgba(0, 255, 65, 0.3);
+        }
+
+        .article-title {
+            font-size: 1rem;
+            margin-bottom: 1.25rem;
+            color: var(--primary-green);
+            font-weight: 700;
+            line-height: 1.3;
+        }
+
+        .article-title a {
+            color: var(--primary-green);
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .article-title a:hover {
+            color: var(--secondary-purple);
+            text-shadow: 0 0 10px var(--secondary-purple);
+        }
+
+        .article-excerpt {
+            color: var(--text-gray);
+            margin-bottom: 1.5rem;
+            line-height: 1.7;
+            font-family: 'VT323', monospace;
+            font-size: 1rem;
+        }
+
+        .article-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.6rem;
+            color: var(--text-gray);
+            border-top: 1px solid var(--border-color);
+            padding-top: 1.25rem;
+            margin-bottom: 1.5rem;
+            font-family: 'VT323', monospace;
+            font-size: 0.9rem;
+        }
+
+        .read-more {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: linear-gradient(135deg, var(--secondary-purple), var(--accent-pink));
+            color: var(--text-white);
+            padding: 0.875rem 1.75rem;
+            border-radius: 0;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.6rem;
+            box-shadow: 0 4px 12px rgba(189, 0, 255, 0.3);
+        }
+
+        .read-more:hover {
+            background: linear-gradient(135deg, var(--accent-pink), var(--secondary-purple));
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(189, 0, 255, 0.4);
+        }
+
+        /* Styles pour les boutons Modifier/Supprimer dans blog.php */
+        .article-actions-blog {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .btn-modifier-blog {
+            background: linear-gradient(135deg, var(--primary-green), #00cc33);
+            color: var(--darker-bg);
+            padding: 0.875rem 1.75rem;
+            border-radius: 0;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.6rem;
+            box-shadow: 0 4px 12px rgba(0, 255, 65, 0.3);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex: 1;
+            justify-content: center;
+        }
+
+        .btn-modifier-blog:hover {
+            background: linear-gradient(135deg, #00cc33, var(--primary-green));
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 255, 65, 0.4);
+        }
+
+        .btn-supprimer-blog {
+            background: linear-gradient(135deg, var(--accent-pink), #ff1a75);
+            color: var(--text-white);
+            padding: 0.875rem 1.75rem;
+            border-radius: 0;
+            border: none;
+            font-weight: 600;
+            transition: all 0.3s;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.6rem;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(255, 0, 110, 0.3);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex: 1;
+            justify-content: center;
+        }
+
+        .btn-supprimer-blog:hover {
+            background: linear-gradient(135deg, #ff1a75, var(--accent-pink));
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 0, 110, 0.4);
+        }
+
+        /* Pagination améliorée */
+        .pagination {
+            text-align: center;
+            margin: 3rem 0;
+            padding: 2rem 0;
+        }
+
+        .pagination-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .pagination-btn {
+            background: linear-gradient(135deg, var(--primary-green), #00cc33);
+            color: var(--darker-bg);
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 0;
+            font-size: 0.7rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: 'Press Start 2P', cursive;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: 0 8px 24px rgba(0, 255, 65, 0.3);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .pagination-btn:hover {
+            background: linear-gradient(135deg, #00cc33, var(--primary-green));
+            transform: translateY(-4px);
+            box-shadow: 0 12px 32px rgba(0, 255, 65, 0.4);
+        }
+
+        .pagination-btn:disabled {
+            background: var(--text-gray);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .pagination-btn:disabled:hover {
+            transform: none;
+            box-shadow: none;
+        }
+
+        .page-numbers {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .page-number {
+            background: var(--card-bg);
+            color: var(--text-white);
+            padding: 0.75rem 1rem;
+            border: 2px solid var(--border-color);
+            text-decoration: none;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.6rem;
+            transition: all 0.3s;
+        }
+
+        .page-number:hover {
+            border-color: var(--primary-green);
+            background: rgba(0, 255, 65, 0.1);
+        }
+
+        .page-number.active {
+            background: linear-gradient(135deg, var(--primary-green), #00cc33);
+            color: var(--darker-bg);
+            border-color: var(--primary-green);
+        }
+
+        .page-info {
+            color: var(--text-gray);
+            margin-top: 1rem;
+            font-family: 'VT323', monospace;
+            font-size: 1.1rem;
+        }
+
+        .filter-info {
+            color: var(--primary-green);
+            font-family: 'VT323', monospace;
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .no-articles {
+            text-align: center;
+            padding: 6rem 2rem;
+            color: var(--text-gray);
+            grid-column: 1 / -1;
+        }
+
+        .no-articles h3 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: var(--primary-green);
+        }
+
+        .no-articles p {
+            font-size: 1.125rem;
+            margin-bottom: 1.5rem;
+            font-family: 'VT323', monospace;
+            font-size: 1.2rem;
+        }
+
+        /* Footer */
+        .footer {
+            background: var(--darker-bg);
+            padding: 4rem 0 2rem;
+            margin-top: 4rem;
+            border-top: 3px solid var(--primary-green);
+        }
+
+        .footer-content {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 3rem;
+            margin-bottom: 3rem;
+        }
+
+        .footer-section h4 {
+            color: var(--primary-green);
+            margin-bottom: 1.5rem;
+            font-size: 1rem;
+            font-weight: 700;
+            text-shadow: 0 0 10px var(--primary-green);
+        }
+
+        .footer-section ul {
+            list-style: none;
+        }
+
+        .footer-section ul li {
+            margin-bottom: 0.75rem;
+        }
+
+        .footer-section a {
+            color: var(--text-gray);
+            text-decoration: none;
+            transition: color 0.3s;
+            font-family: 'VT323', monospace;
+            font-size: 1rem;
+        }
+
+        .footer-section a:hover {
+            color: var(--primary-green);
+            transform: translateX(5px);
+        }
+
+        .footer-bottom {
+            text-align: center;
+            padding-top: 3rem;
+            border-top: 1px solid var(--border-color);
+            color: var(--text-gray);
+            font-family: 'VT323', monospace;
+            font-size: 1rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .blog-title {
+                font-size: 1.8rem;
+            }
+            
+            .articles-grid {
+                grid-template-columns: 1fr;
+                gap: 2rem;
+            }
+            
+            .blog-header {
+                margin-top: 100px;
+                padding: 3rem 0 1rem;
+            }
+            
+            .pagination-container {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .page-numbers {
+                order: -1;
+            }
+            
+            .category-filters {
+                gap: 0.5rem;
+            }
+            
+            .category-filter {
+                padding: 0.6rem 1rem;
+                font-size: 0.5rem;
+            }
+            
+            .article-actions-blog {
+                flex-direction: column;
+            }
+
+            .nav {
+                flex-direction: column;
+                gap: 1rem;
+                align-items: flex-start;
+            }
+            
+            .nav-dropdown-container {
+                max-width: 100%;
+                width: 100%;
+            }
+            
+            .nav-dropdown {
+                width: 100%;
+                font-size: 0.7rem;
+                padding: 10px 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Particules d'arrière-plan -->
+    <div class="particles">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+    </div>
+
+    <header class="header">
+        <div class="container">
+            <nav class="nav">
+                <div class="logo">🎮 LV BLOG GAMING</div>
+                
+                <!-- Navigation Déroulante (TOUJOURS VISIBLE) -->
+                <div class="nav-dropdown-container">
+                    <select class="nav-dropdown" onchange="if(this.value) window.location.href=this.value">
+                        <option value="">-- MENU PRINCIPAL --</option>
+                        <option value="index.php">🏠 ACCUEIL</option>
+                        <option value="blog.php" selected>📰 ARTICLES</option>
+                        <option value="about.php">ℹ️ À PROPOS</option>
+                        <option value="submit-article.php">✍️ ÉCRIRE UN ARTICLE</option>
+                        <option value="http://localhost/projet-web/gaming_museum/view/frontoffice/index.php">🎮 MUSÉE GAMING</option>
+                        <option value="../Backoffice/login.php">👑 ESPACE ADMIN</option>
+                        
+                        <?php if (isset($_SESSION['user_id'])): ?>
+                            <option value="mes-articles.php">📁 MES ARTICLES</option>
+                            <option value="deconnexion.php">🚪 DÉCONNEXION</option>
+                        <?php else: ?>
+                            <option value="connexion.php">🔐 SE CONNECTER</option>
+                            <option value="inscription.php">📝 S'INSCRIRE</option>
+                        <?php endif; ?>
+                    </select>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <section class="blog-header">
+        <div class="container">
+            <h1 class="blog-title">
+                <?php 
+                if ($categorie_filtre) {
+                    echo getCategoryLabel($categorie_filtre) . ' - ARTICLES';
+                } else {
+                    echo 'TOUS LES ARTICLES';
+                }
+                ?>
+            </h1>
+            <p class="blog-subtitle">Découvrez tous nos articles sur l'univers du gaming</p>
+            
+            <!-- Filtres par catégorie -->
+            <div class="category-filters">
+                <a href="<?php echo generatePageUrl(1); ?>" 
+                   class="category-filter filter-all <?php echo !$categorie_filtre ? 'active' : ''; ?>">
+                    🎮 TOUTES LES CATÉGORIES
+                </a>
+                
+                <a href="<?php echo generatePageUrl(1, 'review'); ?>" 
+                   class="category-filter <?php echo $categorie_filtre == 'review' ? 'active' : ''; ?>">
+                    🎮 TEST & REVIEW
+                </a>
+                
+                <a href="<?php echo generatePageUrl(1, 'news'); ?>" 
+                   class="category-filter <?php echo $categorie_filtre == 'news' ? 'active' : ''; ?>">
+                    📰 ACTUALITÉ
+                </a>
+                
+                <a href="<?php echo generatePageUrl(1, 'tutorial'); ?>" 
+                   class="category-filter <?php echo $categorie_filtre == 'tutorial' ? 'active' : ''; ?>">
+                    📚 TUTORIEL
+                </a>
+                
+                <a href="<?php echo generatePageUrl(1, 'trends'); ?>" 
+                   class="category-filter <?php echo $categorie_filtre == 'trends' ? 'active' : ''; ?>">
+                    📈 TENDANCES
+                </a>
+            </div>
+            
+            <?php if ($categorie_filtre): ?>
+            <div class="filter-info">
+                Filtre actif : <strong><?php echo getCategoryLabel($categorie_filtre); ?></strong> 
+                (<?php echo $total_articles; ?> article<?php echo $total_articles > 1 ? 's' : ''; ?>)
+                <a href="<?php echo generatePageUrl(1); ?>" style="color: var(--accent-pink); margin-left: 1rem;">✕ Supprimer le filtre</a>
+            </div>
+            <?php endif; ?>
+        </div>
+    </section>
+
+    <section class="container">
+        <div class="articles-grid">
+            <?php if (count($articles) > 0): ?>
+                <?php foreach ($articles as $article): ?>
+                <?php 
+                $categorie = isset($article['Categorie']) ? $article['Categorie'] : 'news';
+                ?>
+                <div class="article-card">
+                    <div class="article-image">
+                        <?php echo getCategoryIcon($categorie); ?>
+                    </div>
+                    <div class="article-content">
+                        <span class="article-category">
+                            <?php echo getCategoryLabel($categorie); ?>
+                        </span>
+                        <h3 class="article-title">
+                            <a href="blog-single.php?id=<?php echo $article['Article_ID']; ?>">
+                                <?php echo htmlspecialchars($article['Titre']); ?>
+                            </a>
+                        </h3>
+                        <p class="article-excerpt">
+                            <?php
+                            $content = strip_tags($article['Contenu']);
+                            echo strlen($content) > 150 ? substr($content, 0, 150) . '...' : $content;
+                            ?>
+                        </p>
+                        <div class="article-meta">
+                            <span>📅 <?php echo date('d/m/Y', strtotime($article['Date_Publication'])); ?></span>
+                            <span>👤 Auteur <?php echo htmlspecialchars($article['Auteur_ID']); ?></span>
+                        </div>
+                        
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <a href="blog-single.php?id=<?php echo $article['Article_ID']; ?>" class="read-more">
+                                LIRE LA SUITE →
+                            </a>
+                            
+                            <?php if (isset($_SESSION['user_id']) && $article['Auteur_ID'] == $_SESSION['user_id']): ?>
+                            <div class="article-actions-blog">
+                                <a href="modifier-article.php?id=<?php echo $article['Article_ID']; ?>" class="btn-modifier-blog">
+                                    ✏️ MODIFIER
+                                </a>
+                                <form method="POST" action="supprimer-depuis-blog.php" style="display: inline;">
+                                    <input type="hidden" name="article_id" value="<?php echo $article['Article_ID']; ?>">
+                                    <input type="hidden" name="redirect_to" value="blog.php">
+                                    <button type="submit" name="supprimer" class="btn-supprimer-blog" 
+                                            onclick="return confirm('⚠️ Êtes-vous sûr de vouloir supprimer cet article ? Il disparaîtra du blog.');">
+                                        🗑️ SUPPRIMER
+                                    </button>
+                                </form>
+                            </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <div class="no-articles">
+                    <h3>🎮 AUCUN ARTICLE PUBLIÉ</h3>
+                    <p>
+                        <?php if ($categorie_filtre): ?>
+                            Aucun article dans la catégorie "<?php echo getCategoryLabel($categorie_filtre); ?>" pour le moment.
+                        <?php else: ?>
+                            Il n'y a pas encore d'articles publiés sur le blog.
+                        <?php endif; ?>
+                    </p>
+                    <p style="margin-top: 1.5rem;">
+                        <strong>Soyez le premier à <a href="submit-article.php" style="color: var(--primary-green); font-weight: 600;">proposer un article</a> !</strong>
+                    </p>
+                </div>
+            <?php endif; ?>
+        </div>
+
+        <!-- Pagination améliorée -->
+        <?php if ($total_pages > 1): ?>
+        <div class="pagination">
+            <div class="pagination-container">
+                <!-- Bouton Page Précédente -->
+                <?php if ($page > 1): ?>
+                    <a href="<?php echo generatePageUrl($page - 1, $categorie_filtre); ?>" class="pagination-btn">
+                        ◀️ PAGE PRÉCÉDENTE
+                    </a>
+                <?php else: ?>
+                    <span class="pagination-btn" style="background: var(--text-gray); cursor: not-allowed;">
+                        ◀️ PAGE PRÉCÉDENTE
+                    </span>
+                <?php endif; ?>
+
+                <!-- Numéros de page -->
+                <div class="page-numbers">
+                    <?php
+                    // Afficher maximum 5 pages autour de la page actuelle
+                    $start_page = max(1, $page - 2);
+                    $end_page = min($total_pages, $page + 2);
+                    
+                    for ($i = $start_page; $i <= $end_page; $i++):
+                    ?>
+                        <a href="<?php echo generatePageUrl($i, $categorie_filtre); ?>" 
+                           class="page-number <?php echo $i == $page ? 'active' : ''; ?>">
+                            <?php echo $i; ?>
+                        </a>
+                    <?php endfor; ?>
+                </div>
+
+                <!-- Bouton Page Suivante -->
+                <?php if ($page < $total_pages): ?>
+                    <a href="<?php echo generatePageUrl($page + 1, $categorie_filtre); ?>" class="pagination-btn">
+                        PAGE SUIVANTE ▶️
+                    </a>
+                <?php else: ?>
+                    <span class="pagination-btn" style="background: var(--text-gray); cursor: not-allowed;">
+                        PAGE SUIVANTE ▶️
+                    </span>
+                <?php endif; ?>
+            </div>
+
+            <div class="page-info">
+                Page <?php echo $page; ?> sur <?php echo $total_pages; ?> 
+                - <?php echo $total_articles; ?> article<?php echo $total_articles > 1 ? 's' : ''; ?> au total
+                <?php if ($categorie_filtre): ?>
+                    dans la catégorie "<?php echo getCategoryLabel($categorie_filtre); ?>"
+                <?php endif; ?>
+                
+                <?php if ($page == $total_pages): ?>
+                    <br><span style="color: var(--primary-green);">✅ Vous avez vu tous les articles !</span>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+    </section>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <div class="logo" style="font-size: 1.2rem; margin-bottom: 1rem;">🎮 BLOG GAMING</div>
+                    <p style="color: var(--text-gray); font-family: 'VT323', monospace; font-size: 1rem;">Votre destination gaming ultime</p>
+                </div>
+                <div class="footer-section">
+                    <h4>NAVIGATION</h4>
+                    <ul>
+                        <li><a href="index.php">Accueil</a></li>
+                        <li><a href="blog.php">Articles</a></li>
+                        <li><a href="about.php">À propos</a></li>
+                        <li><a href="submit-article.php">Écrire un article</a></li>
+                        <li><a href="http://localhost/projet-web/gaming_museum/view/frontoffice/index.php">🎮 Musée Gaming</a></li>
+                        <li><a href="../Backoffice/login.php">👑 Espace Admin</a></li>
+                        <?php if (isset($_SESSION['user_id'])): ?>
+                            <li><a href="mes-articles.php">Mes articles</a></li>
+                            <li><a href="deconnexion.php">Déconnexion</a></li>
+                        <?php else: ?>
+                            <li><a href="connexion.php">Connexion</a></li>
+                            <li><a href="inscription.php">Inscription</a></li>
+                        <?php endif; ?>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>CONTACT</h4>
+                    <p style="color: var(--text-gray); font-family: 'VT323', monospace; font-size: 1rem;">LV@blog-gaming.fr<br>+216 21 121 732</p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 BLOG GAMING. TOUS DROITS RÉSERVÉS.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Animation des particules
+            const particles = document.querySelectorAll('.particle');
+            particles.forEach((particle, index) => {
+                particle.style.animationDelay = `${index * 2}s`;
+                particle.style.animationDuration = `${15 + Math.random() * 10}s`;
+            });
+
+            // Définir la valeur sélectionnée dans la liste déroulante
+            const navDropdown = document.querySelector('.nav-dropdown');
+            if (navDropdown) {
+                const currentPage = window.location.pathname.split('/').pop();
+                
+                // S'assurer que "ARTICLES" est sélectionné sur cette page
+                if (currentPage === 'blog.php') {
+                    navDropdown.value = 'blog.php';
+                }
+                
+                // Si la page actuelle n'est pas trouvée dans les options, sélectionner la première option
+                if (!navDropdown.value) {
+                    navDropdown.selectedIndex = 0;
+                }
+            }
+        });
+    </script>
+</body>
+</html>
