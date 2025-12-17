@@ -210,8 +210,8 @@ class PasswordResetController {
             $stmt->execute(['email' => $email]);
             
             if ($stmt->rowCount() === 0) {
-                // Don't reveal if email doesn't exist for security reasons
-                return ['success' => true, 'message' => 'Si un compte avec cet email existe, un lien de réinitialisation a été envoyé.'];
+                // Show error if email doesn't exist
+                return ['success' => false, 'message' => 'Aucun compte trouvé avec cette adresse email.'];
             }
             
             $user = $stmt->fetch();

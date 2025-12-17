@@ -19,6 +19,7 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.0/css/line.css">
     <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         * {
             margin: 0;
@@ -331,10 +332,11 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
             margin-bottom: 2rem;
             text-align: center;
             letter-spacing: 4px;
-            position: relative;
+            position: absolute;
             padding-right: 1rem;
             padding-bottom: 1.2rem;
             padding-top: 0.5rem;
+            top: 15%;
         }
 
         .form-title::after {
@@ -565,6 +567,60 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
             transform-origin: center;
         }
 
+        /* Google Sign-In Styling */
+        .divider {
+            display: flex;
+            align-items: center;
+            text-align: center;
+            margin: 2rem 0 1.5rem 0;
+        }
+
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .divider span {
+            padding: 0 1rem;
+            color: var(--text-gray);
+            font-size: 0.5rem;
+            font-family: 'VT323', monospace;
+            font-size: 0.9rem;
+        }
+
+        .google-btn-container {
+            margin-bottom: 2rem;
+        }
+
+        #googleSignInContainer {
+            min-height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .google-blocked-message {
+            padding: 1rem;
+            background: rgba(255, 215, 0, 0.1);
+            border: 2px solid #FFD700;
+            color: #FFD700;
+            font-size: 0.5rem;
+            text-align: center;
+            line-height: 1.6;
+            font-family: 'VT323', monospace;
+            font-size: 0.85rem;
+        }
+
+        .google-status {
+            font-size: 0.5rem;
+            color: var(--text-gray);
+            text-align: center;
+            margin-top: 0.5rem;
+            font-family: 'VT323', monospace;
+        }
+
         @media (max-width: 768px) {
             .card-wrap {
                 width: 100%;
@@ -622,7 +678,7 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
             }
 
             .btn {
-                font-size: 0.6rem;
+                font-size: 0.55rem;
                 height: 44px;
             }
 
@@ -674,6 +730,19 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
                     <div class="center-wrap">
                         <div class="section text-center">
                             <h3 class="form-title">CONNEXION</h3>
+
+                            <!-- Google Sign-In Container -->
+                            <div class="google-btn-container">
+                                <div id="googleSignInContainer">
+                                    <!-- Google button will be rendered here or fallback message -->
+                                </div>
+                                <div class="google-status" id="googleStatus">Checking Google Sign-In...</div>
+                            </div>
+
+                            <div class="divider">
+                                <span>OU</span>
+                            </div>
+
                             <form id="loginForm">
                                 <div class="form-group">
                                     <input type="text" name="username" class="form-style" placeholder="Email ou Nom d'utilisateur" id="loginUsername" autocomplete="off" required>
@@ -694,7 +763,7 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
                                 <span class="captcha-error-message"></span>
                                 <button type="submit" class="btn mt-4"><span>SE CONNECTER</span></button>
                                 <p class="mb-0 mt-4 text-center">
-                                    <a href="forget_password.php" class="link">&gt; Mot de passe oublie ?</a>
+                                    <a href="forget_password.php" class="link">&gt; Mot de passe oublié ?</a>
                                 </p>
                                 <p class="mb-0 mt-3 text-center">
                                     <a href="signup.php" class="link signup-link">Pas encore inscrit ? <span>S'INSCRIRE &gt;</span></a>
@@ -708,6 +777,211 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
     </div>
 
     <script>
+        // ========================================
+        // GOOGLE OAUTH WITH NETWORK ERROR HANDLING
+        // ========================================
+
+        const DEBUG = true;
+        const CLIENT_ID = '939931083288-4rc1jqq22l17lcfr9gs2fuplj1k9j5ps.apps.googleusercontent.com';
+        
+        let googleInitialized = false;
+        let initializationAttempted = false;
+
+        function debugLog(message, data = null) {
+            if (DEBUG) {
+                console.log(`[Google OAuth] ${message}`, data || '');
+            }
+        }
+
+        // JWT Parser
+        function parseJwt(token) {
+            try {
+                const base64Url = token.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(
+                    atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')
+                );
+                return JSON.parse(jsonPayload);
+            } catch (error) {
+                debugLog('JWT parse error', error);
+                throw new Error('Failed to parse JWT token');
+            }
+        }
+
+        // Show fallback when Google is blocked
+        function showGoogleBlockedMessage() {
+            const container = document.getElementById('googleSignInContainer');
+            const status = document.getElementById('googleStatus');
+            
+            container.innerHTML = `
+                <div class="google-blocked-message">
+                    ⚠️ GOOGLE SIGN-IN UNAVAILABLE<br>
+                    <span style="font-size: 0.75rem; color: #888;">
+                        Network blocking detected. Please use login below.
+                    </span>
+                </div>
+            `;
+            
+            status.textContent = 'Google authentication temporarily unavailable';
+            status.style.color = '#FFD700';
+            
+            debugLog('❌ Google Sign-In blocked - showing fallback message');
+        }
+
+        // Handle successful Google Sign-In
+        function handleGoogleSignIn(response) {
+            debugLog('✅ Google Sign-In callback received');
+            
+            try {
+                const payload = parseJwt(response.credential);
+                debugLog('Parsed JWT:', payload);
+                
+                const googleData = {
+                    id: payload.sub,
+                    email: payload.email,
+                    given_name: payload.given_name || '',
+                    family_name: payload.family_name || '',
+                    picture: payload.picture || ''
+                };
+                
+                // Update UI
+                const status = document.getElementById('googleStatus');
+                if (status) {
+                    status.textContent = 'Signing in with Google...';
+                    status.style.color = 'var(--primary-green)';
+                }
+                
+                // Send to backend
+                const formData = new FormData();
+                formData.append('action', 'googleLogin');
+                formData.append('google_data', JSON.stringify(googleData));
+                
+                fetch('../../controller/user_controller.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    debugLog('Backend response:', data);
+                    
+                    if (data.success) {
+                        if (status) status.textContent = 'Success! Redirecting...';
+                        
+                        setTimeout(() => {
+                            if (data.role === 'admin') {
+                                window.location.href = '../backoffice/dashboard.php';
+                            } else {
+                                window.location.href = 'index.php';
+                            }
+                        }, 500);
+                    } else {
+                        alert(data.message || 'Login failed');
+                        if (status) status.textContent = 'Ready to sign in';
+                    }
+                })
+                .catch(error => {
+                    debugLog('Backend error:', error);
+                    alert('Network error. Please try again.');
+                    if (status) status.textContent = 'Ready to sign in';
+                });
+                
+            } catch (error) {
+                debugLog('Error processing sign-in:', error);
+                alert('Failed to process Google Sign-In');
+            }
+        }
+
+        // Initialize Google Sign-In
+        function initializeGoogleSignIn() {
+            if (initializationAttempted) {
+                debugLog('Initialization already attempted');
+                return googleInitialized;
+            }
+            
+            initializationAttempted = true;
+            debugLog('Starting Google Sign-In initialization...');
+            
+            // Check if Google library is loaded
+            if (typeof google === 'undefined' || !google.accounts || !google.accounts.id) {
+                debugLog('❌ Google library not loaded');
+                showGoogleBlockedMessage();
+                return false;
+            }
+            
+            debugLog('✅ Google library loaded');
+            
+            try {
+                // Initialize
+                google.accounts.id.initialize({
+                    client_id: CLIENT_ID,
+                    callback: handleGoogleSignIn,
+                    auto_select: false,
+                    cancel_on_tap_outside: true
+                });
+                
+                debugLog('✅ google.accounts.id.initialize() completed');
+                
+                // Get button container
+                const container = document.getElementById('googleSignInContainer');
+                if (!container) {
+                    debugLog('❌ Button container not found');
+                    return false;
+                }
+                
+                // Render Google's button
+                google.accounts.id.renderButton(container, {
+                    theme: 'filled_blue',
+                    size: 'large',
+                    text: 'signin_with',
+                    width: Math.min(container.offsetWidth || 400, 400)
+                });
+                
+                debugLog('✅ Button rendered successfully');
+                
+                // Update status
+                const status = document.getElementById('googleStatus');
+                if (status) {
+                    status.textContent = 'Google Sign-In ready';
+                    status.style.color = 'var(--primary-green)';
+                }
+                
+                googleInitialized = true;
+                return true;
+                
+            } catch (error) {
+                debugLog('❌ Initialization error:', error);
+                showGoogleBlockedMessage();
+                return false;
+            }
+        }
+
+        // Wait for Google library and initialize
+        function waitForGoogleAndInit() {
+            debugLog('=== Waiting for Google library ===');
+            
+            let attempts = 0;
+            const maxAttempts = 20; // Reduced from 30 for faster fallback
+            const interval = 200;
+            
+            const checkInterval = setInterval(() => {
+                attempts++;
+                
+                if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
+                    debugLog(`✅ Google library loaded after ${attempts} attempts`);
+                    clearInterval(checkInterval);
+                    initializeGoogleSignIn();
+                } else if (attempts >= maxAttempts) {
+                    debugLog(`❌ Google library failed to load after ${maxAttempts} attempts`);
+                    clearInterval(checkInterval);
+                    showGoogleBlockedMessage();
+                }
+            }, interval);
+        }
+
+        // ========================================
+        // REGULAR LOGIN FORM HANDLING
+        // ========================================
+
         const checkbox = document.getElementById('reg-log');
         const signupToggle = document.getElementById('signupToggle');
 
@@ -784,7 +1058,6 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
                 clearError(password);
             }
             
-            // Check reCAPTCHA
             const recaptchaResponse = grecaptcha.getResponse();
             if (!recaptchaResponse) {
                 showCaptchaError('Please verify that you are not a robot');
@@ -803,7 +1076,6 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
                 const formData = new FormData(this);
                 formData.append('action', 'login');
                 
-                // Add reCAPTCHA response to form data
                 const recaptchaResponse = grecaptcha.getResponse();
                 formData.append('g-recaptcha-response', recaptchaResponse);
                 
@@ -814,18 +1086,21 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        if (data.role === 'admin') {
-                            window.location.href = '../backoffice/dashboard.php';
+                        if (data.require_2fa) {
+                            window.location.href = '2fa_verification.php';
                         } else {
-                            window.location.href = 'index.php';
+                            if (data.role === 'admin') {
+                                window.location.href = '../backoffice/dashboard.php';
+                            } else {
+                                window.location.href = 'index.php';
+                            }
                         }
                     } else {
-                        // Check if error is captcha related
                         if (data.message.toLowerCase().includes('captcha') || 
                             data.message.toLowerCase().includes('robot') ||
                             data.message.toLowerCase().includes('verification')) {
                             showCaptchaError(data.message);
-                            grecaptcha.reset(); // Reset the captcha
+                            grecaptcha.reset();
                         } else {
                             alert(data.message);
                         }
@@ -837,6 +1112,10 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
                 });
             }
         });
+
+        // Start Google initialization
+        debugLog('=== Script Loaded ===');
+        waitForGoogleAndInit();
     </script>
 </body>
 </html>

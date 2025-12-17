@@ -269,11 +269,12 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
             margin-bottom: 1rem;
             text-align: center;
             letter-spacing: 4px;
-            position: absolute;
-            top: 8% ;
             padding-right: 1rem;
             padding-bottom: 1.2rem;
-            padding-top: 0.5rem;
+            padding-top: 0.rem;
+            left:20%;
+            top:10%;
+            position: absolute;
         }
 
         .form-title::after {
@@ -300,8 +301,8 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
             font-family: 'VT323', monospace;
             font-size: 1rem;
             line-height: 1.6;
-            position: absolute;
-            top: 20%;
+            position:absolute;
+            top:25%
         }
 
         .form-group {
@@ -462,12 +463,15 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
         }
 
         .error-message,
-        .success-message {
+        .success-message,
+        .general-error {
             display: none;
             font-size: 0.45rem;
             margin-top: 0.5rem;
             font-family: 'VT323', monospace;
             font-size: 0.8rem;
+            position:absolute;
+            top:65%;
         }
 
         .error-message {
@@ -481,6 +485,17 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
             border: 2px solid var(--primary-green);
             background: rgba(0, 255, 65, 0.1);
             box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);
+            margin-bottom: 1rem;
+        }
+
+        .general-error {
+            color: #FF0055;
+            text-align: center;
+            padding: 1rem;
+            border: 2px solid #FF0055;
+            background: rgba(255, 0, 85, 0.1);
+            box-shadow: 0 0 20px rgba(255, 0, 85, 0.3);
+            margin-bottom: 1rem;
         }
 
         @media (max-width: 768px) {
@@ -566,7 +581,7 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
             <div class="page-header">
                 <h2 class="page-header-title">
                     <a href="login.php" class="back-link">&lt; RETOUR</a>
-                    MOT DE PASSE OUBLIE
+                    MOT DE PASSE OUBLIÉ
                 </h2>
             </div>
             
@@ -574,11 +589,12 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
                 <div class="card-single">
                     <div class="center-wrap">
                         <div class="section text-center">
-                            <h3 class="form-title">RECUPERATION</h3>
+                            <h3 class="form-title">Récuperation</h3>
                             <p class="form-description">
-                                Entrez votre adresse email et nous vous enverrons un lien pour reinitialiser votre mot de passe.
+                                Entrez votre adresse email et nous vous enverrons un lien pour réinitialiser votre mot de passe.
                             </p>
                             <div id="successMessage" class="success-message"></div>
+                            <div id="generalError" class="general-error"></div>
                             <form id="forgotPasswordForm">
                                 <div class="form-group">
                                     <input type="email" name="email" class="form-style" placeholder="Adresse Email" id="email" autocomplete="off" required>
@@ -588,7 +604,7 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
                                 <div class="g-recaptcha" data-sitekey="6LdiwxwsAAAAAJvy6JuOZrKpQMYReIozQW-uRK5T"></div>
                                 <button type="submit" class="btn mt-4"><span>ENVOYER LE LIEN</span></button>
                                 <p class="mb-0 mt-4 text-center">
-                                    <a href="login.php" class="link">&lt; Retour a la connexion</a>
+                                    <a href="login.php" class="link">&lt; Retour à la connexion</a>
                                 </p>
                             </form>
                         </div>
@@ -624,8 +640,18 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
             input.style.borderColor = 'rgba(0, 255, 65, 0.3)';
         }
 
+        function showGeneralError(message) {
+            const errorElement = document.getElementById('generalError');
+            const successElement = document.getElementById('successMessage');
+            successElement.style.display = 'none';
+            errorElement.textContent = message;
+            errorElement.style.display = 'block';
+        }
+
         function showSuccess(message) {
             const successElement = document.getElementById('successMessage');
+            const errorElement = document.getElementById('generalError');
+            errorElement.style.display = 'none';
             successElement.textContent = message;
             successElement.style.display = 'block';
             document.getElementById('forgotPasswordForm').style.display = 'none';
@@ -645,6 +671,9 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
             
             let isValid = true;
             
+            // Hide any previous general errors
+            document.getElementById('generalError').style.display = 'none';
+            
             if (!email) {
                 showError(emailInput, 'Email is required');
                 isValid = false;
@@ -656,7 +685,7 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
             }
             
             if (!recaptchaResponse) {
-                alert('Please complete the reCAPTCHA');
+                showGeneralError('Veuillez compléter le reCAPTCHA');
                 isValid = false;
             }
             
@@ -674,13 +703,13 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
                     if (data.success) {
                         showSuccess(data.message);
                     } else {
-                        alert(data.message);
+                        showGeneralError(data.message);
                         grecaptcha.reset();
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alert('An error occurred. Please try again.');
+                    showGeneralError('Une erreur est survenue. Veuillez réessayer.');
                     grecaptcha.reset();
                 });
             }

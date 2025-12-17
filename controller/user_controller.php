@@ -8,6 +8,12 @@ if (session_status() === PHP_SESSION_NONE) {
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../model/user_model.php';
 
+// Import PHPMailer
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+
+require __DIR__ . '/../vendor/autoload.php';
+
 class UserController {
     private $conn;
     private $recaptchaSecretKey = '6LdiwxwsAAAAAHqn32uZh3KzzHorRZ6w9Zyerwmq';
@@ -41,6 +47,130 @@ class UserController {
         $resultJson = json_decode($result);
         
         return $resultJson->success;
+    }
+    
+    private function generate2FACode() {
+        return str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+    }
+    
+    private function send2FAEmail($email, $code, $username) {
+        $mail = new PHPMailer(true);
+        
+        try {
+            $mail->SMTPDebug = 0;
+            $mail->isSMTP();
+            $mail->Host       = 'smtp.gmail.com';
+            $mail->SMTPAuth   = true;
+            $mail->Username   = 'aminelandolsi5000@gmail.com';
+            $mail->Password   = 'hfvq kqny lcci czok';
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+            $mail->Port       = 587;
+            $mail->CharSet = 'UTF-8';
+            
+            $mail->setFrom('aminelandolsi5000@gmail.com', 'Ludology Vault');
+            $mail->addAddress($email, $username);
+            
+            $mail->isHTML(true);
+            $mail->Subject = 'Code de Vérification 2FA - Ludology Vault';
+            
+            $mail->Body = '
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <style>
+                        body {
+                            font-family: Arial, sans-serif;
+                            background-color: #0a0a0a;
+                            color: #ffffff;
+                            padding: 20px;
+                            margin: 0;
+                        }
+                        .container {
+                            max-width: 600px;
+                            margin: 0 auto;
+                            background-color: #1a1a1a;
+                            border: 2px solid #00FF41;
+                            padding: 30px;
+                            box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);
+                        }
+                        h1 {
+                            color: #00FF41;
+                            text-align: center;
+                            text-shadow: 0 0 10px #00FF41;
+                            margin-top: 0;
+                        }
+                        .code-box {
+                            background: rgba(0, 255, 65, 0.1);
+                            border: 3px solid #00FF41;
+                            padding: 20px;
+                            margin: 30px 0;
+                            text-align: center;
+                        }
+                        .code {
+                            font-size: 48px;
+                            font-weight: bold;
+                            color: #00FF41;
+                            letter-spacing: 10px;
+                            text-shadow: 0 0 20px #00FF41;
+                        }
+                        p {
+                            line-height: 1.6;
+                            margin-bottom: 20px;
+                            color: #ffffff;
+                        }
+                        .warning {
+                            background-color: rgba(255, 215, 0, 0.1);
+                            border: 1px solid #FFD700;
+                            padding: 15px;
+                            margin: 20px 0;
+                            color: #FFD700;
+                        }
+                        .footer {
+                            margin-top: 30px;
+                            padding-top: 20px;
+                            border-top: 1px solid #333;
+                            font-size: 12px;
+                            color: #888;
+                            text-align: center;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <h1>🎮 LUDOLOGY VAULT 🎮</h1>
+                        <p>Bonjour <strong>' . htmlspecialchars($username) . '</strong>,</p>
+                        <p>Voici votre code de vérification pour finaliser votre connexion :</p>
+                        
+                        <div class="code-box">
+                            <div class="code">' . $code . '</div>
+                        </div>
+                        
+                        <div class="warning">
+                            <strong>⚠️ IMPORTANT :</strong> Ce code expirera dans 5 minutes.
+                        </div>
+                        
+                        <p>Si vous n\'avez pas demandé ce code, ignorez cet email et assurez-vous que votre compte est sécurisé.</p>
+                        
+                        <div class="footer">
+                            <p>© 2025 Ludology Vault - Le coffre-fort des jeux vidéo rétro</p>
+                        </div>
+                    </div>
+                </body>
+                </html>
+            ';
+            
+            $mail->AltBody = "Bonjour $username,\n\n" .
+                            "Votre code de vérification : $code\n\n" .
+                            "Ce code expire dans 5 minutes.\n\n" .
+                            "Ludology Vault";
+            
+            $mail->send();
+            return ['success' => true];
+        } catch (Exception $e) {
+            error_log("2FA Email Error: " . $mail->ErrorInfo);
+            return ['success' => false, 'message' => $mail->ErrorInfo];
+        }
     }
     
     public function register($user) {
@@ -85,10 +215,8 @@ class UserController {
         }
     }
     
-    // ✅ FIXED: Added $recaptchaResponse parameter
     public function login($username, $password, $recaptchaResponse = null) {
         try {
-            // ✅ FIXED: Now verifying reCAPTCHA with the parameter
             if (!$this->verifyRecaptcha($recaptchaResponse)) {
                 return ['success' => false, 'message' => 'reCAPTCHA verification failed. Please try again.'];
             }
@@ -105,20 +233,216 @@ class UserController {
                 }
                 
                 if (password_verify($password, $userData['password'])) {
-                    $_SESSION['user_id'] = $userData['id'];
-                    $_SESSION['username'] = $userData['username'];
-                    $_SESSION['email'] = $userData['email'];
-                    $_SESSION['role'] = $userData['role'];
-                    $_SESSION['profile_picture'] = $userData['profile_picture_url'];
-                    $_SESSION['logged_in'] = true;
+                    // Generate 2FA code
+                    $code = $this->generate2FACode();
+                    $expiresAt = date('Y-m-d H:i:s', time() + 300); // 5 minutes
                     
-                    return ['success' => true, 'message' => 'Login successful', 'role' => $userData['role']];
+                    // Store code in database
+                    $sql = "UPDATE users SET two_fa_code = :code, two_fa_expires_at = :expires_at WHERE id = :id";
+                    $stmt = $this->conn->prepare($sql);
+                    $stmt->execute([
+                        'code' => $code,
+                        'expires_at' => $expiresAt,
+                        'id' => $userData['id']
+                    ]);
+                    
+                    // Send 2FA email
+                    $emailResult = $this->send2FAEmail($userData['email'], $code, $userData['username']);
+                    
+                    if ($emailResult['success']) {
+                        // Store user info in session for 2FA verification
+                        $_SESSION['2fa_user_id'] = $userData['id'];
+                        $_SESSION['2fa_pending'] = true;
+                        
+                        return ['success' => true, 'message' => 'Code sent to email', 'require_2fa' => true];
+                    } else {
+                        return ['success' => false, 'message' => 'Failed to send verification code'];
+                    }
                 } else {
                     return ['success' => false, 'message' => 'Invalid password'];
                 }
             } else {
                 return ['success' => false, 'message' => 'User not found'];
             }
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'Error: ' . $e->getMessage()];
+        }
+    }
+    
+    public function verify2FA($code) {
+        try {
+            if (!isset($_SESSION['2fa_user_id']) || !isset($_SESSION['2fa_pending'])) {
+                return ['success' => false, 'message' => 'Invalid session'];
+            }
+            
+            $userId = $_SESSION['2fa_user_id'];
+            
+            $sql = "SELECT * FROM users WHERE id = :id";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute(['id' => $userId]);
+            $userData = $stmt->fetch();
+            
+            if (!$userData) {
+                return ['success' => false, 'message' => 'User not found'];
+            }
+            
+            // Check if code expired
+            if (strtotime($userData['two_fa_expires_at']) < time()) {
+                return ['success' => false, 'message' => 'Code expired. Please login again.'];
+            }
+            
+            // Verify code
+            if ($userData['two_fa_code'] !== $code) {
+                return ['success' => false, 'message' => 'Invalid code'];
+            }
+            
+            // Clear 2FA data
+            $sql = "UPDATE users SET two_fa_code = NULL, two_fa_expires_at = NULL WHERE id = :id";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute(['id' => $userId]);
+            
+            // Complete login
+            $_SESSION['user_id'] = $userData['id'];
+            $_SESSION['username'] = $userData['username'];
+            $_SESSION['email'] = $userData['email'];
+            $_SESSION['role'] = $userData['role'];
+            $_SESSION['profile_picture'] = $userData['profile_picture_url'];
+            $_SESSION['logged_in'] = true;
+            
+            // Clear 2FA session variables
+            unset($_SESSION['2fa_user_id']);
+            unset($_SESSION['2fa_pending']);
+            
+            return ['success' => true, 'message' => 'Login successful', 'role' => $userData['role']];
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'Error: ' . $e->getMessage()];
+        }
+    }
+    
+    public function resend2FA() {
+        try {
+            if (!isset($_SESSION['2fa_user_id']) || !isset($_SESSION['2fa_pending'])) {
+                return ['success' => false, 'message' => 'Invalid session'];
+            }
+            
+            $userId = $_SESSION['2fa_user_id'];
+            
+            $sql = "SELECT * FROM users WHERE id = :id";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute(['id' => $userId]);
+            $userData = $stmt->fetch();
+            
+            if (!$userData) {
+                return ['success' => false, 'message' => 'User not found'];
+            }
+            
+            // Generate new code
+            $code = $this->generate2FACode();
+            $expiresAt = date('Y-m-d H:i:s', time() + 300);
+            
+            $sql = "UPDATE users SET two_fa_code = :code, two_fa_expires_at = :expires_at WHERE id = :id";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute([
+                'code' => $code,
+                'expires_at' => $expiresAt,
+                'id' => $userId
+            ]);
+            
+            // Send email
+            $emailResult = $this->send2FAEmail($userData['email'], $code, $userData['username']);
+            
+            if ($emailResult['success']) {
+                return ['success' => true, 'message' => 'New code sent'];
+            } else {
+                return ['success' => false, 'message' => 'Failed to send code'];
+            }
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'Error: ' . $e->getMessage()];
+        }
+    }
+    
+    public function googleLogin($googleData) {
+        try {
+            // Check if user exists by google_id
+            $sql = "SELECT * FROM users WHERE google_id = :google_id";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute(['google_id' => $googleData['id']]);
+            
+            if ($stmt->rowCount() > 0) {
+                // Existing Google user
+                $userData = $stmt->fetch();
+                
+                if ($userData['status'] === 'banned') {
+                    return ['success' => false, 'message' => 'Your account has been banned'];
+                }
+            } else {
+                // Check if email exists (link Google account)
+                $sql = "SELECT * FROM users WHERE email = :email";
+                $stmt = $this->conn->prepare($sql);
+                $stmt->execute(['email' => $googleData['email']]);
+                
+                if ($stmt->rowCount() > 0) {
+                    // Link existing account
+                    $userData = $stmt->fetch();
+                    
+                    $sql = "UPDATE users SET google_id = :google_id WHERE id = :id";
+                    $stmt = $this->conn->prepare($sql);
+                    $stmt->execute([
+                        'google_id' => $googleData['id'],
+                        'id' => $userData['id']
+                    ]);
+                } else {
+                    // Create new user
+                    $username = explode('@', $googleData['email'])[0];
+                    $baseUsername = $username;
+                    $counter = 1;
+                    
+                    // Make sure username is unique
+                    while (true) {
+                        $sql = "SELECT id FROM users WHERE username = :username";
+                        $stmt = $this->conn->prepare($sql);
+                        $stmt->execute(['username' => $username]);
+                        
+                        if ($stmt->rowCount() === 0) break;
+                        
+                        $username = $baseUsername . $counter;
+                        $counter++;
+                    }
+                    
+                    $sql = "INSERT INTO users (username, email, password, first_name, last_name, google_id, role, status) 
+                            VALUES (:username, :email, :password, :first_name, :last_name, :google_id, :role, :status)";
+                    
+                    $stmt = $this->conn->prepare($sql);
+                    $stmt->execute([
+                        'username' => $username,
+                        'email' => $googleData['email'],
+                        'password' => password_hash(bin2hex(random_bytes(16)), PASSWORD_DEFAULT),
+                        'first_name' => $googleData['given_name'] ?? '',
+                        'last_name' => $googleData['family_name'] ?? '',
+                        'google_id' => $googleData['id'],
+                        'role' => 'user',
+                        'status' => 'active'
+                    ]);
+                    
+                    $userData = [
+                        'id' => $this->conn->lastInsertId(),
+                        'username' => $username,
+                        'email' => $googleData['email'],
+                        'role' => 'user',
+                        'profile_picture_url' => $googleData['picture'] ?? null
+                    ];
+                }
+            }
+            
+            // Set session (no 2FA for Google login)
+            $_SESSION['user_id'] = $userData['id'];
+            $_SESSION['username'] = $userData['username'];
+            $_SESSION['email'] = $userData['email'];
+            $_SESSION['role'] = $userData['role'];
+            $_SESSION['profile_picture'] = $userData['profile_picture_url'];
+            $_SESSION['logged_in'] = true;
+            
+            return ['success' => true, 'message' => 'Google login successful', 'role' => $userData['role']];
         } catch (Exception $e) {
             return ['success' => false, 'message' => 'Error: ' . $e->getMessage()];
         }
@@ -142,7 +466,6 @@ class UserController {
     
     public function updateProfile($userId, $data, $file = null) {
         try {
-            // Check if username is being changed and if it already exists
             if (isset($data['username'])) {
                 $sql = "SELECT id FROM users WHERE username = :username AND id != :id";
                 $stmt = $this->conn->prepare($sql);
@@ -153,7 +476,6 @@ class UserController {
                 }
             }
             
-            // Check if email is being changed and if it already exists
             if (isset($data['email'])) {
                 $sql = "SELECT id FROM users WHERE email = :email AND id != :id";
                 $stmt = $this->conn->prepare($sql);
@@ -164,12 +486,10 @@ class UserController {
                 }
             }
             
-            // Handle profile picture upload
             $profilePicturePath = null;
             if ($file && $file['error'] === UPLOAD_ERR_OK) {
                 $uploadDir = __DIR__ . '/../uploads/';
                 
-                // Create uploads directory if it doesn't exist
                 if (!file_exists($uploadDir)) {
                     mkdir($uploadDir, 0777, true);
                 }
@@ -187,7 +507,6 @@ class UserController {
                 if (move_uploaded_file($file['tmp_name'], $targetPath)) {
                     $profilePicturePath = $newFileName;
                     
-                    // Delete old profile picture if exists
                     $oldPicture = $this->viewProfile($userId);
                     if ($oldPicture['success'] && $oldPicture['user']['profile_picture_url']) {
                         $oldPath = $uploadDir . $oldPicture['user']['profile_picture_url'];
@@ -200,7 +519,6 @@ class UserController {
                 }
             }
             
-            // Build the SQL query dynamically based on what's being updated
             $updateFields = [];
             $params = ['id' => $userId];
             
@@ -234,7 +552,6 @@ class UserController {
                 $params['date_of_birth'] = $data['date_of_birth'];
             }
             
-            // Handle password update if provided
             if (isset($data['password']) && !empty($data['password'])) {
                 $hashedPassword = password_hash($data['password'], PASSWORD_DEFAULT);
                 $updateFields[] = 'password = :password';
@@ -255,7 +572,6 @@ class UserController {
             $result = $stmt->execute($params);
             
             if ($result) {
-                // Update session variables
                 if (isset($data['username'])) {
                     $_SESSION['username'] = $data['username'];
                 }
@@ -391,9 +707,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 break;
                 
             case 'login':
-                // ✅ FIXED: Now passing the reCAPTCHA response
                 $recaptchaResponse = $_POST['g-recaptcha-response'] ?? null;
                 $result = $controller->login($_POST['username'], $_POST['password'], $recaptchaResponse);
+                echo json_encode($result);
+                break;
+                
+            case 'verify2FA':
+                $result = $controller->verify2FA($_POST['code']);
+                echo json_encode($result);
+                break;
+                
+            case 'resend2FA':
+                $result = $controller->resend2FA();
+                echo json_encode($result);
+                break;
+                
+            case 'googleLogin':
+                $googleData = json_decode($_POST['google_data'], true);
+                $result = $controller->googleLogin($googleData);
                 echo json_encode($result);
                 break;
                 
