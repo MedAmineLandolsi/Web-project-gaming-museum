@@ -1,6 +1,6 @@
-# 🎮 Gaming Museum - Interactive Digital Platform
+#  Gaming Museum - Interactive Digital Platform
 
-## 📋 Project Description
+##  Project Description
 
 The Gaming Museum is a comprehensive web platform dedicated to preserving and celebrating video game history and culture. This interactive digital museum combines educational content, community engagement, and event management to create a unique experience for gaming enthusiasts.
 
@@ -13,7 +13,7 @@ The Gaming Museum is a comprehensive web platform dedicated to preserving and ce
 
 **Problem Solved:** Traditional gaming museums are limited by physical space and location. Our digital platform makes gaming history accessible to everyone worldwide, combining museum-quality content with modern community features and AI-powered assistance.
 
-## 📚 Table of Contents
+## Table of Contents
 
 - [Installation](#installation)
 - [Usage](#usage)
@@ -23,7 +23,7 @@ The Gaming Museum is a comprehensive web platform dedicated to preserving and ce
 - [Contributing](#contributing)
 - [License](#license)
 
-## 🚀 Installation
+## Installation
 
 ### Prerequisites
 
@@ -102,7 +102,7 @@ php -S localhost:8000
 http://localhost:8000
 ```
 
-## 💻 Usage
+## Usage
 
 ### Installing PHP
 
@@ -139,8 +139,8 @@ Museum curators and administrators can access the management panel:
   - Email: `admin@gmail.com`
   - Password: `admin` 
 
-### 🎯 Museum Features
-## 👤 User Management System
+## Museum Features
+###  User Management System
 **Module Lead: [Med Amine Landolsi]**
 
 Comprehensive user authentication and profile management system that handles all visitor registrations, accounts, and activity tracking throughout the museum platform.
@@ -174,57 +174,57 @@ Comprehensive user authentication and profile management system that handles all
   - 2FA page for extra verification
   - included captcha pattern
 
-### 📝 Gaming History Blog & Archives
+###  Gaming History Blog & Archives
 **Module Lead: Ilef Karoui**
 
 A rich content management system documenting the evolution of video games, featuring articles about gaming history, industry milestones, and cultural impact.
 
 **Features:**
-- 🤖 **AI Museum Guide Chatbot**: Interactive assistant helping visitors discover relevant articles and content based on their interests
-- 🔍 **Advanced Content Discovery**:
+-  **AI Museum Guide Chatbot**: Interactive assistant helping visitors discover relevant articles and content based on their interests
+-  **Advanced Content Discovery**:
   - Filter by gaming era (1970s-2020s)
   - Search by console, genre, or developer
   - Tag-based navigation for topics
-- ⚙️ **Personalized Experience Settings**:
+-  **Personalized Experience Settings**:
   - Customize content preferences
   - Notification settings for new exhibitions
   - Content moderation tools for curators
-- 📊 **Visitor Analytics Dashboard**: Track article popularity, visitor engagement, and trending topics
+-  **Visitor Analytics Dashboard**: Track article popularity, visitor engagement, and trending topics
 
-### 📅 Museum Events & Exhibitions
+###  Museum Events & Exhibitions
 **Module Lead: [Selim Acchi]**
 
 Comprehensive system for organizing virtual and physical museum events, including game launches, retro gaming nights, tournaments, and special exhibitions.
 
 **Features:**
-- 📆 **Event Creation and Management**: Create detailed event pages with schedules, descriptions, and multimedia
-- 👥 **Advanced Participant Management**: Track RSVPs, manage waitlists, and organize attendee groups
-- 📝 **Registration System**: Validated forms capturing visitor information and preferences
-- 📊 **Participation History**: Track visitor attendance and engagement across multiple events
-- 🎨 **Custom Dashboard**: Unique visual interface for event organizers with real-time statistics
-- 🔒 **Secure Data Management**: All visitor and event data stored securely in MySQL database
+-  **Event Creation and Management**: Create detailed event pages with schedules, descriptions, and multimedia
+-  **Advanced Participant Management**: Track RSVPs, manage waitlists, and organize attendee groups
+-  **Registration System**: Validated forms capturing visitor information and preferences
+-  **Participation History**: Track visitor attendance and engagement across multiple events
+-  **Custom Dashboard**: Unique visual interface for event organizers with real-time statistics
+-  **Secure Data Management**: All visitor and event data stored securely in MySQL database
 
 
-### 👥 Gaming Community Hub
+###  Gaming Community Hub
 **Module Lead: Nour Touhemi**
 
 A vibrant social space where gaming enthusiasts can connect, share memories, and discuss gaming culture.
 
 **Features:**
-- 👤 **Member Profiles**: Detailed gaming profiles with favorite games, achievements, and gaming history
-- 🏘️ **Gaming Communities**: 
+-  **Member Profiles**: Detailed gaming profiles with favorite games, achievements, and gaming history
+- **Gaming Communities**: 
   - Era-specific communities (Retro, Modern, Indie)
   - Platform-specific groups (Nintendo, PlayStation, Xbox, PC)
   - Genre-based discussion forums (RPG, FPS, Strategy, etc.)
-- 🤖 **AI-Powered Content Generation**: 
+- **AI-Powered Content Generation**: 
   - Auto-suggest discussion topics based on trending games
   - Generate gaming-related posts from keywords
   - AI writing assistance for reviews and articles
-- 📢 **Social Publishing System**:
+- **Social Publishing System**:
   - Share gaming memories and screenshots
   - Like, comment, and share community content
   - Personalized feed based on interests
-- 🎮 **Gaming Network**: Connect with other gamers and build your gaming circle
+- **Gaming Network**: Connect with other gamers and build your gaming circle
 
 ### 🛠️ Visitor Support & Feedback System
 **Module Lead: Nedra Ouihibi**
@@ -232,52 +232,52 @@ A vibrant social space where gaming enthusiasts can connect, share memories, and
 Intelligent complaint and feedback management system ensuring excellent visitor experience.
 
 **Features:**
-- 🌐 **Multilingual Support**: 
+- **Multilingual Support**: 
   - Automatic translation for international visitors
   - Real-time message translation
   - Multi-language interface adaptation
-- 🔍 **Smart Complaint Handling**:
+- **Smart Complaint Handling**:
   - Automatic categorization (technical issues, content feedback, event inquiries)
   - Priority-based routing to appropriate staff
   - Intelligent agent assignment
-- 📝 **Guided Feedback Form**: 
+- **Guided Feedback Form**: 
   - Adaptive form based on issue type
   - Step-by-step problem description
   - AI-suggested solutions before ticket creation
-- 🤖 **Proactive Issue Detection**:
+- **Proactive Issue Detection**:
   - Automatic ticket generation for recurring problems
   - Pattern recognition for common visitor issues
   - System log integration for technical problems
-- 📊 **Support Analytics Dashboard**:
+- **Support Analytics Dashboard**:
   - Response time metrics
   - Visitor satisfaction ratings
   - Issue resolution tracking and reporting
 
-### 🎮 Video Game Database & Catalog
+### Video Game Database & Catalog
 **Module Lead: [Wessim Hannechi]**
 
 Comprehensive database documenting thousands of video games throughout history, serving as the museum's core archive.
 
 **Features:**
-- 🎯 **Extensive Game Catalog**: 
+- **Extensive Game Catalog**: 
   - Detailed game profiles with release info, developers, and platforms
   - High-quality screenshots and cover art
   - Historical context and cultural significance
-- ⭐ **Community Reviews**: Visitor ratings and reviews for each game
-- 🔍 **Advanced Search System**:
+- **Community Reviews**: Visitor ratings and reviews for each game
+- **Advanced Search System**:
   - Filter by year, platform, genre, developer
   - Full-text search across game descriptions
   - Recommendation engine based on preferences
-- 📊 **Gaming Statistics**: 
+- **Gaming Statistics**: 
   - Most popular games by era
   - Platform evolution timelines
   - Genre trends across decades
-- 🏆 **Personal Collections**: 
+- **Personal Collections**: 
   - Create favorite game lists
   - Track games you've played
   - Build custom gaming timelines
 
-## 🛠️ Technologies Used
+##  Technologies Used
 
 ### Frontend
 * **HTML5** - Semantic structure for museum content
@@ -300,7 +300,7 @@ Comprehensive database documenting thousands of video games throughout history, 
 * **AI/NLP APIs** - Chatbot and content generation features
 * **Translation API** - Multilingual support system
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 ─projet-web
@@ -417,7 +417,7 @@ Comprehensive database documenting thousands of video games throughout history, 
             └───front
 ```
 
-### 🤝 Contributors
+### Contributors
 
 We welcome contributions from gaming enthusiasts, developers, and historians! Here's how you can help preserve gaming history.
 - [Med_Amine_Landolsi](https://github.com/MedAmineLandolsi) - User management system
@@ -481,7 +481,7 @@ Found a bug or have a suggestion? Open an issue with:
 * Screenshots or examples if applicable
 * Your environment (browser, PHP version, etc.)
 
-## 📄 License
+## License
 
 This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for full details.
 
@@ -498,7 +498,7 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 ---
 
-**🎮 Preserving Gaming History, One Line of Code at a Time**
+*** Preserving Gaming History, One Line of Code at a Time**
 
 *Developed with ❤️ by gaming enthusiasts for the Web Technologies course 2025-2026*
 
